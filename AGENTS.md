@@ -12,13 +12,14 @@ prompt → generate.py (diffusers) → PNG → trace.js (imagetracerjs) → SVG 
 
 ## Script layout
 
-Scripts are grouped under `scripts/`, each as a standalone `uv` project:
+Scripts are grouped under `scripts/`, each as a standalone project:
 
 | Directory | Purpose |
 |---|---|
 | `scripts/generate/` | PNG generation — Python + diffusers + torch |
+| `scripts/trace/` | PNG → SVG tracing — Node.js + imagetracerjs |
 
-> Future scripts: `scripts/trace/` (PNG→SVG), `scripts/orchestrate/` (unified CLI).
+> Future scripts: `scripts/orchestrate/` (unified CLI).
 
 ## Key files
 
@@ -28,7 +29,8 @@ Scripts are grouped under `scripts/`, each as a standalone `uv` project:
 | `scripts/generate/diffusers_backend.py` | Real diffusers+torch pipeline |
 | `scripts/generate/stub_backend.py` | Stdlib-only fallback (no torch required) |
 | `scripts/generate/pyproject.toml` | uv project manifest |
-| `trace.js` | Node.js script — converts PNG to SVG (planned) |
+| `scripts/trace/trace.js` | Node.js script — converts PNG to SVG via imagetracerjs |
+| `scripts/trace/package.json` | npm project manifest |
 | `zikon` | Unified CLI orchestrator (planned) |
 | `.agents/skills/zikon/SKILL.md` | Installable skill for Claude Code / Codex (planned) |
 
@@ -39,6 +41,16 @@ Scripts are grouped under `scripts/`, each as a standalone `uv` project:
 cd scripts/generate
 uv run generate.py --prompt <text> --model <z-image-turbo|sdxl|hf-repo/name> --output <path.png> [--steps <int>] [--seed <int>]
 ```
+
+Output JSON: `prompt`, `enhanced_prompt`, `model`, `seed`, `png_path`
+
+**scripts/trace (current):**
+```bash
+cd scripts/trace
+node trace.js <path.png> [--colors <int>] [--tolerance <float>] [--scale <float>]
+```
+
+Output JSON: `png_path`, `svg_path`, `svg_inline`, `colors`, `tolerance`, `scale` — `svg_path` and `svg_inline` are produced by `trace.js`
 
 **Unified CLI (planned):**
 ```bash
@@ -71,7 +83,7 @@ Exit codes: `0` success · `1` generation error · `2` tracing error · `3` inva
 
 - **Python 3.11+** + `diffusers` + `torch` + `accelerate` + `Pillow` — image generation
 - **uv** — dependency management; each script group has its own `pyproject.toml`
-- **Node.js** + `imagetracerjs` — SVG tracing (planned)
+- **Node.js** + `imagetracerjs` — SVG tracing (`scripts/trace/`)
 - No external API calls — all inference runs locally
 
 ## Current iteration

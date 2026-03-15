@@ -1,6 +1,6 @@
 # Roadmap
 
-## [ ]  Iteration 1 — Python generation pipeline
+## [X]  Iteration 1 — Python generation pipeline
 
 Goal: functional Python script that receives a prompt and generates a PNG using diffusers.
 
