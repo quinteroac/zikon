@@ -526,6 +526,64 @@ test("US-005-AC06: node --check syntax validation passes for zikon.js", () => {
 });
 
 // ---------------------------------------------------------------------------
+// US-006-AC01..AC04: installation documentation
+// ---------------------------------------------------------------------------
+
+test("US-006-AC01: README.md has an Installation section with Linux, macOS, and Windows coverage", () => {
+  const readmePath = path.resolve(__dirname, "..", "README.md");
+  const readme = fs.readFileSync(readmePath, "utf8");
+  assert.ok(readme.includes("## Installation"), "README.md must include an Installation section");
+  assert.ok(readme.includes("Linux"), "README.md Installation must cover Linux");
+  assert.ok(readme.includes("macOS"), "README.md Installation must cover macOS");
+  assert.ok(readme.includes("Windows"), "README.md Installation must cover Windows");
+});
+
+test("US-006-AC02: README.md lists Bun, Node.js, and uv prerequisites with install links", () => {
+  const readmePath = path.resolve(__dirname, "..", "README.md");
+  const readme = fs.readFileSync(readmePath, "utf8");
+  assert.ok(readme.includes("### Prerequisites"), "README.md must include a prerequisites subsection");
+  assert.ok(readme.includes("https://bun.sh/docs/installation"), "README.md must include Bun install link");
+  assert.ok(readme.includes("https://nodejs.org/en/download"), "README.md must include Node.js install link");
+  assert.ok(
+    readme.includes("https://docs.astral.sh/uv/getting-started/installation/"),
+    "README.md must include uv install link"
+  );
+});
+
+test("US-006-AC03: README.md includes exact command sequences from download to first zikon invocation", () => {
+  const readmePath = path.resolve(__dirname, "..", "README.md");
+  const readme = fs.readFileSync(readmePath, "utf8");
+  assert.ok(
+    readme.includes("git clone https://github.com/<your-org>/logo-creator.git"),
+    "README.md must include git clone command"
+  );
+  assert.ok(readme.includes("node cli/zikon.js install"), "README.md must include Linux/macOS install command");
+  assert.ok(readme.includes("node .\\cli\\zikon.js install"), "README.md must include Windows install command");
+  assert.ok(readme.includes("~/.zikon/bin/zikon"), "README.md must include Linux/macOS zikon invocation");
+  assert.ok(
+    readme.includes("$env:USERPROFILE\\.zikon\\bin\\zikon.cmd"),
+    "README.md must include Windows zikon invocation"
+  );
+});
+
+test("US-006-AC04: README.md includes explicit GitHub README render visual-verification checklist", () => {
+  const readmePath = path.resolve(__dirname, "..", "README.md");
+  const readme = fs.readFileSync(readmePath, "utf8");
+  assert.ok(
+    readme.includes("### Visual verification in GitHub README render"),
+    "README.md must include visual verification subsection"
+  );
+  assert.ok(
+    readme.includes("One prerequisites table for Linux, macOS, and Windows"),
+    "README.md must include explicit visual verification criteria for the prerequisites table"
+  );
+  assert.ok(
+    readme.includes("Two command blocks (Bash + PowerShell) ending with a successful `zikon` invocation"),
+    "README.md must include explicit visual verification criteria for command blocks"
+  );
+});
+
+// ---------------------------------------------------------------------------
 // US-002-AC01..AC07: installer behavior
 // ---------------------------------------------------------------------------
 

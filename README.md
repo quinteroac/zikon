@@ -19,6 +19,42 @@ prompt
                     └─▶ output.svg + result.json
 ```
 
+## Installation
+
+### Prerequisites
+
+Install these tools before running Zikon:
+
+| OS | Bun | Node.js | uv |
+|---|---|---|---|
+| Linux | [bun.sh installation docs](https://bun.sh/docs/installation) | [Node.js Linux install docs](https://nodejs.org/en/download/package-manager) | [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) |
+| macOS | [bun.sh installation docs](https://bun.sh/docs/installation) | [Node.js macOS installers](https://nodejs.org/en/download) | [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) |
+| Windows | [bun.sh installation docs](https://bun.sh/docs/installation) | [Node.js Windows installers](https://nodejs.org/en/download) | [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) |
+
+### Linux / macOS: download to first successful `zikon` run
+
+```bash
+git clone https://github.com/<your-org>/logo-creator.git
+cd logo-creator
+node cli/zikon.js install
+~/.zikon/bin/zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+```
+
+### Windows (PowerShell): download to first successful `zikon` run
+
+```powershell
+git clone https://github.com/<your-org>/logo-creator.git
+cd logo-creator
+node .\cli\zikon.js install
+& "$env:USERPROFILE\.zikon\bin\zikon.cmd" "minimalist rocket icon" --model z-image-turbo --output-dir .\assets
+```
+
+### Visual verification in GitHub README render
+
+Open the repository on GitHub and confirm this Installation section renders as:
+- One prerequisites table for Linux, macOS, and Windows
+- Two command blocks (Bash + PowerShell) ending with a successful `zikon` invocation
+
 ## Usage
 
 ```bash
