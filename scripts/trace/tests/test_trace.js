@@ -117,3 +117,103 @@ test('AC05: node --check trace.js passes syntax check', () => {
     `Syntax check failed: ${result.stderr}`
   );
 });
+
+// US-002-AC01: --colors sets the number of palette colors (default: 16)
+test('US-002-AC01: --colors sets palette color count, default is 16', () => {
+  const { tmpDir, pngPath } = createTmpPng();
+  try {
+    // Default
+    const defaultResult = spawnSync('node', [TRACE_JS, pngPath], { encoding: 'utf8' });
+    assert.strictEqual(defaultResult.status, 0);
+    const defaultParsed = JSON.parse(defaultResult.stdout.trim());
+    assert.strictEqual(defaultParsed.colors, 16, 'Default colors should be 16');
+
+    // Custom value
+    const customResult = spawnSync('node', [TRACE_JS, '--colors', '32', pngPath], { encoding: 'utf8' });
+    assert.strictEqual(customResult.status, 0);
+    const customParsed = JSON.parse(customResult.stdout.trim());
+    assert.strictEqual(customParsed.colors, 32, '--colors 32 should set colors to 32');
+  } finally {
+    cleanup(tmpDir);
+  }
+});
+
+// US-002-AC02: --tolerance sets the path simplification tolerance (default: 1.0)
+test('US-002-AC02: --tolerance sets path simplification tolerance, default is 1.0', () => {
+  const { tmpDir, pngPath } = createTmpPng();
+  try {
+    // Default
+    const defaultResult = spawnSync('node', [TRACE_JS, pngPath], { encoding: 'utf8' });
+    assert.strictEqual(defaultResult.status, 0);
+    const defaultParsed = JSON.parse(defaultResult.stdout.trim());
+    assert.strictEqual(defaultParsed.tolerance, 1.0, 'Default tolerance should be 1.0');
+
+    // Custom value
+    const customResult = spawnSync('node', [TRACE_JS, '--tolerance', '2.5', pngPath], { encoding: 'utf8' });
+    assert.strictEqual(customResult.status, 0);
+    const customParsed = JSON.parse(customResult.stdout.trim());
+    assert.strictEqual(customParsed.tolerance, 2.5, '--tolerance 2.5 should set tolerance to 2.5');
+  } finally {
+    cleanup(tmpDir);
+  }
+});
+
+// US-002-AC03: --scale sets the output scale factor (default: 1.0)
+test('US-002-AC03: --scale sets output scale factor, default is 1.0', () => {
+  const { tmpDir, pngPath } = createTmpPng();
+  try {
+    // Default
+    const defaultResult = spawnSync('node', [TRACE_JS, pngPath], { encoding: 'utf8' });
+    assert.strictEqual(defaultResult.status, 0);
+    const defaultParsed = JSON.parse(defaultResult.stdout.trim());
+    assert.strictEqual(defaultParsed.scale, 1.0, 'Default scale should be 1.0');
+
+    // Custom value
+    const customResult = spawnSync('node', [TRACE_JS, '--scale', '2.0', pngPath], { encoding: 'utf8' });
+    assert.strictEqual(customResult.status, 0);
+    const customParsed = JSON.parse(customResult.stdout.trim());
+    assert.strictEqual(customParsed.scale, 2.0, '--scale 2.0 should set scale to 2.0');
+  } finally {
+    cleanup(tmpDir);
+  }
+});
+
+// US-002-AC04: invalid flag values cause exit code 3 with error on stderr
+test('US-002-AC04: non-numeric --colors value exits 3 with stderr error', () => {
+  const { tmpDir, pngPath } = createTmpPng();
+  try {
+    const result = spawnSync('node', [TRACE_JS, '--colors', 'abc', pngPath], { encoding: 'utf8' });
+    assert.strictEqual(result.status, 3, `Expected exit code 3, got ${result.status}`);
+    assert.ok(result.stderr.trim().length > 0, 'Expected error message on stderr');
+  } finally {
+    cleanup(tmpDir);
+  }
+});
+
+test('US-002-AC04: non-numeric --tolerance value exits 3 with stderr error', () => {
+  const { tmpDir, pngPath } = createTmpPng();
+  try {
+    const result = spawnSync('node', [TRACE_JS, '--tolerance', 'xyz', pngPath], { encoding: 'utf8' });
+    assert.strictEqual(result.status, 3, `Expected exit code 3, got ${result.status}`);
+    assert.ok(result.stderr.trim().length > 0, 'Expected error message on stderr');
+  } finally {
+    cleanup(tmpDir);
+  }
+});
+
+test('US-002-AC04: non-numeric --scale value exits 3 with stderr error', () => {
+  const { tmpDir, pngPath } = createTmpPng();
+  try {
+    const result = spawnSync('node', [TRACE_JS, '--scale', 'bad', pngPath], { encoding: 'utf8' });
+    assert.strictEqual(result.status, 3, `Expected exit code 3, got ${result.status}`);
+    assert.ok(result.stderr.trim().length > 0, 'Expected error message on stderr');
+  } finally {
+    cleanup(tmpDir);
+  }
+});
+
+// US-002-AC05: syntax check passes (covered by AC05 above, but verify explicitly for US-002)
+test('US-002-AC05: node --check trace.js syntax check passes', () => {
+  const result = spawnSync('node', ['--check', TRACE_JS], { encoding: 'utf8' });
+  assert.strictEqual(result.status, 0, `Syntax check failed: ${result.stderr}`);
+});
