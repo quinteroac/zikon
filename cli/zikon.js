@@ -16,6 +16,7 @@
  */
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { Command } = require("commander");
@@ -23,6 +24,11 @@ const { Command } = require("commander");
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
+const EXIT_SUCCESS = 0;
+const EXIT_GENERATION_ERROR = 1;
+const EXIT_TRACE_ERROR = 2;
+const EXIT_INVALID_ARGUMENTS = 3;
+
 const PROJECT_ROOT = path.join(__dirname, "..");
 const GENERATE_PY = path.join(PROJECT_ROOT, "scripts", "generate", "generate.py");
 const GENERATE_PROJECT = path.join(PROJECT_ROOT, "scripts", "generate");
@@ -44,25 +50,154 @@ const PNGREADER_JS = path.join(
   "PNGReader.js"
 );
 
+const COPY_IGNORES = new Set([
+  "node_modules",
+  ".venv",
+  "__pycache__",
+  ".pytest_cache",
+  ".ruff_cache",
+]);
+const ZIKON_PATH_MARKER_START = "# >>> zikon >>>";
+const ZIKON_PATH_MARKER_END = "# <<< zikon <<<";
+
 // ---------------------------------------------------------------------------
-// Argument parsing (commander.js)
+// Install helpers
 // ---------------------------------------------------------------------------
 
-const program = new Command();
+function get_platform() {
+  return process.env.ZIKON_TEST_PLATFORM || process.platform;
+}
 
-program
-  .name("zikon")
-  .description("End-to-end logo generation pipeline: prompt → PNG → SVG")
-  .argument("<prompt>", "text prompt describing the logo to generate")
-  .option("--model <id>", "model to use: z-image-turbo, sdxl, or a HuggingFace repo ID", "z-image-turbo")
-  .option("--output-dir <dir>", "directory to write output files", "./out")
-  .option("--seed <int>", "integer seed for deterministic generation")
-  .option("--style <str>", "style preset to apply to the prompt")
-  .configureOutput({
-    writeOut: (str) => process.stderr.write(str),
-    writeErr: (str) => process.stderr.write(str),
-  })
-  .exitOverride();
+function get_home_directory(platform) {
+  if (platform === "win32") {
+    return process.env.USERPROFILE || os.homedir();
+  }
+  return process.env.HOME || os.homedir();
+}
+
+function get_install_dir() {
+  return path.join(get_home_directory(get_platform()), ".zikon");
+}
+
+function write_stderr(message) {
+  process.stderr.write(message);
+}
+
+function copy_tree(source_dir, destination_dir) {
+  fs.mkdirSync(destination_dir, { recursive: true });
+  for (const entry of fs.readdirSync(source_dir, { withFileTypes: true })) {
+    if (COPY_IGNORES.has(entry.name)) {
+      continue;
+    }
+    const source_path = path.join(source_dir, entry.name);
+    const destination_path = path.join(destination_dir, entry.name);
+    if (entry.isDirectory()) {
+      copy_tree(source_path, destination_path);
+      continue;
+    }
+    fs.copyFileSync(source_path, destination_path);
+  }
+}
+
+function run_command(command, args, cwd) {
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.stdout) {
+    write_stderr(result.stdout);
+  }
+  if (result.stderr) {
+    write_stderr(result.stderr);
+  }
+  return result;
+}
+
+function install_node_dependencies(project_dir) {
+  const npm_result = run_command("npm", ["install"], project_dir);
+  if (npm_result.status === 0) {
+    return;
+  }
+  if (npm_result.error && npm_result.error.code === "ENOENT") {
+    const pnpm_result = run_command("pnpm", ["install"], project_dir);
+    if (pnpm_result.status === 0) {
+      return;
+    }
+    throw new Error("Failed to install Node dependencies with pnpm.");
+  }
+  throw new Error("Failed to install Node dependencies with npm.");
+}
+
+function ensure_profile_path_entry(profile_path, bin_dir) {
+  const path_line = `export PATH="${bin_dir}:$PATH"`;
+  const managed_block = `${ZIKON_PATH_MARKER_START}\n${path_line}\n${ZIKON_PATH_MARKER_END}\n`;
+  let current_content = "";
+  if (fs.existsSync(profile_path)) {
+    current_content = fs.readFileSync(profile_path, "utf8");
+  }
+  if (current_content.includes(ZIKON_PATH_MARKER_START) || current_content.includes(path_line)) {
+    return;
+  }
+  const separator = current_content.length > 0 && !current_content.endsWith("\n") ? "\n" : "";
+  fs.writeFileSync(profile_path, `${current_content}${separator}${managed_block}`, "utf8");
+}
+
+function write_unix_shim(bin_dir, install_dir) {
+  const shim_path = path.join(bin_dir, "zikon");
+  const script = `#!/usr/bin/env bash
+node "${path.join(install_dir, "cli", "zikon.js")}" "$@"
+`;
+  fs.writeFileSync(shim_path, script, "utf8");
+  fs.chmodSync(shim_path, 0o755);
+}
+
+function write_windows_shim(bin_dir) {
+  const shim_path = path.join(bin_dir, "zikon.cmd");
+  const script = "@echo off\r\nnode \"%~dp0\\..\\cli\\zikon.js\" %*\r\n";
+  fs.writeFileSync(shim_path, script, "utf8");
+}
+
+function install_runtime(install_dir, platform) {
+  const cli_dir = path.join(install_dir, "cli");
+  const scripts_dir = path.join(install_dir, "scripts");
+  const generate_dir = path.join(scripts_dir, "generate");
+  const trace_dir = path.join(scripts_dir, "trace");
+  const bin_dir = path.join(install_dir, "bin");
+
+  fs.mkdirSync(install_dir, { recursive: true });
+  copy_tree(path.join(PROJECT_ROOT, "cli"), cli_dir);
+  copy_tree(path.join(PROJECT_ROOT, "scripts", "generate"), generate_dir);
+  copy_tree(path.join(PROJECT_ROOT, "scripts", "trace"), trace_dir);
+  fs.mkdirSync(bin_dir, { recursive: true });
+
+  if (platform === "win32") {
+    write_windows_shim(bin_dir);
+  } else {
+    write_unix_shim(bin_dir, install_dir);
+  }
+
+  write_stderr("[zikon] Installing Python dependencies with uv...\n");
+  const uv_result = run_command("uv", ["sync"], generate_dir);
+  if (uv_result.status !== 0) {
+    throw new Error("uv sync failed for scripts/generate.");
+  }
+
+  write_stderr("[zikon] Installing Node dependencies for cli/...\n");
+  install_node_dependencies(cli_dir);
+  write_stderr("[zikon] Installing Node dependencies for scripts/trace/...\n");
+  install_node_dependencies(trace_dir);
+
+  if (platform === "win32") {
+    write_stderr(`[zikon] Add "${bin_dir}" to PATH manually, then open a new terminal.\n`);
+    return;
+  }
+
+  const home_dir = get_home_directory(platform);
+  ensure_profile_path_entry(path.join(home_dir, ".bashrc"), bin_dir);
+  ensure_profile_path_entry(path.join(home_dir, ".zshrc"), bin_dir);
+  write_stderr(`[zikon] Added "${bin_dir}" to ~/.bashrc and ~/.zshrc if needed.\n`);
+}
 
 // ---------------------------------------------------------------------------
 // PNG → SVG via imagetracerjs
@@ -100,13 +235,46 @@ function pngToSvg(pngPath) {
 // ---------------------------------------------------------------------------
 
 async function main() {
+  if (process.argv[2] === "install") {
+    if (process.argv.length > 3) {
+      write_stderr("Usage: zikon install\n");
+      process.exit(EXIT_INVALID_ARGUMENTS);
+    }
+    try {
+      const install_dir = get_install_dir();
+      const platform = get_platform();
+      write_stderr(`[zikon] Installing into "${install_dir}"...\n`);
+      install_runtime(install_dir, platform);
+      write_stderr("[zikon] Installation complete.\n");
+      process.exit(EXIT_SUCCESS);
+    } catch (err) {
+      write_stderr(`[zikon] Install failed: ${err.message}\n`);
+      process.exit(EXIT_GENERATION_ERROR);
+    }
+  }
+
+  const program = new Command();
+  program
+    .name("zikon")
+    .description("End-to-end logo generation pipeline: prompt → PNG → SVG")
+    .argument("<prompt>", "text prompt describing the logo to generate")
+    .option("--model <id>", "model to use: z-image-turbo, sdxl, or a HuggingFace repo ID", "z-image-turbo")
+    .option("--output-dir <dir>", "directory to write output files", "./out")
+    .option("--seed <int>", "integer seed for deterministic generation")
+    .option("--style <str>", "style preset to apply to the prompt")
+    .configureOutput({
+      writeOut: (str) => process.stderr.write(str),
+      writeErr: (str) => process.stderr.write(str),
+    })
+    .exitOverride();
+
   // Parse arguments — throws on invalid/missing args (commander.exitOverride)
   try {
     program.parse(process.argv);
   } catch (err) {
     // commander already wrote the error message to stderr; also print help
     program.outputHelp();
-    process.exit(3);
+    process.exit(EXIT_INVALID_ARGUMENTS);
   }
 
   const opts = program.opts();
@@ -152,11 +320,11 @@ async function main() {
   if (genResult.status !== 0) {
     process.stderr.write(`[zikon] generate.py exited with code ${genResult.status}\n`);
     // generate.py exit 3 means invalid arguments → propagate as exit 3
-    if (genResult.status === 3) {
+    if (genResult.status === EXIT_INVALID_ARGUMENTS) {
       program.outputHelp();
-      process.exit(3);
+      process.exit(EXIT_INVALID_ARGUMENTS);
     }
-    process.exit(1);
+    process.exit(EXIT_GENERATION_ERROR);
   }
 
   // Parse generate.py JSON output
@@ -165,7 +333,7 @@ async function main() {
     genPayload = JSON.parse(genResult.stdout.trim());
   } catch (err) {
     process.stderr.write(`[zikon] Failed to parse generate.py output: ${err.message}\n`);
-    process.exit(1);
+    process.exit(EXIT_GENERATION_ERROR);
   }
 
   // Trace PNG → SVG
@@ -175,7 +343,7 @@ async function main() {
     svgInline = await pngToSvg(pngPath);
   } catch (err) {
     process.stderr.write(`[zikon] SVG tracing failed: ${err.message}\n`);
-    process.exit(2);
+    process.exit(EXIT_TRACE_ERROR);
   }
 
   // Write SVG file
@@ -195,5 +363,5 @@ async function main() {
 
 main().catch((err) => {
   process.stderr.write(`[zikon] Unexpected error: ${err.message}\n`);
-  process.exit(1);
+  process.exit(EXIT_GENERATION_ERROR);
 });

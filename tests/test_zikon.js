@@ -22,18 +22,120 @@ const ZIKON_JS = path.resolve(__dirname, "..", "cli", "zikon.js");
 
 /**
  * @param {string[]} args
+ * @param {{ cwd?: string, env?: NodeJS.ProcessEnv }} [options]
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
-function runZikon(args) {
+function runZikon(args, options = {}) {
   const result = spawnSync("node", [ZIKON_JS, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    cwd: options.cwd,
+    env: options.env,
+    maxBuffer: 20 * 1024 * 1024,
   });
   return result;
 }
 
 function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "zikon-test-"));
+}
+
+function makeFakeBin(binDir) {
+  fs.mkdirSync(binDir, { recursive: true });
+
+  const uvPath = path.join(binDir, "uv");
+  const uvScript = `#!/usr/bin/env bash
+set -euo pipefail
+log_file="\${ZIKON_FAKE_LOG:-}"
+if [[ -n "\${log_file}" ]]; then
+  echo "uv:$*" >> "\${log_file}"
+fi
+if [[ "$1" == "sync" ]]; then
+  mkdir -p ".venv"
+  touch ".venv/uv-synced"
+  exit 0
+fi
+if [[ "$1" == "run" ]]; then
+  output=""
+  prompt=""
+  model=""
+  seed_value=""
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      --output) output="$2"; shift 2 ;;
+      --prompt) prompt="$2"; shift 2 ;;
+      --model) model="$2"; shift 2 ;;
+      --seed) seed_value="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  mkdir -p "$(dirname "$output")"
+  printf '\\x89PNG\\r\\n\\x1a\\n' > "$output"
+  if [[ -z "$seed_value" ]]; then
+    seed_json="null"
+  else
+    seed_json="$seed_value"
+  fi
+  printf '{"prompt":"%s","model":"%s","seed":%s,"png_path":"%s"}\\n' "$prompt" "$model" "$seed_json" "$output"
+  exit 0
+fi
+exit 1
+`;
+  fs.writeFileSync(uvPath, uvScript, "utf8");
+  fs.chmodSync(uvPath, 0o755);
+
+  const npmPath = path.join(binDir, "npm");
+  const npmScript = `#!/usr/bin/env bash
+set -euo pipefail
+log_file="\${ZIKON_FAKE_LOG:-}"
+if [[ -n "\${log_file}" ]]; then
+  echo "npm:$PWD:$*" >> "\${log_file}"
+fi
+mkdir -p "node_modules"
+if [[ "$PWD" == *"/scripts/trace" ]]; then
+  mkdir -p "node_modules/imagetracerjs/nodecli"
+  cat > "node_modules/imagetracerjs/imagetracer_v1.2.6.js" <<'JS'
+"use strict";
+module.exports = {
+  imagedataToSVG: () => "<svg xmlns=\\"http://www.w3.org/2000/svg\\"></svg>",
+};
+JS
+  cat > "node_modules/imagetracerjs/nodecli/PNGReader.js" <<'JS'
+"use strict";
+class PNGReader {
+  constructor(bytes) {
+    this.bytes = bytes;
+  }
+  parse(callback) {
+    callback(null, { width: 1, height: 1, pixels: this.bytes });
+  }
+}
+module.exports = PNGReader;
+JS
+fi
+if [[ "$PWD" == *"/cli" ]]; then
+  mkdir -p "node_modules/commander"
+  cat > "node_modules/commander/index.js" <<'JS'
+"use strict";
+class Command {
+  name() { return this; }
+  description() { return this; }
+  argument() { return this; }
+  option() { return this; }
+  configureOutput() { return this; }
+  exitOverride() { return this; }
+  parse() { return this; }
+  opts() { return { model: "z-image-turbo", outputDir: "./out" }; }
+  get args() { return ["test icon"]; }
+  outputHelp() {}
+}
+module.exports = { Command };
+JS
+fi
+exit 0
+`;
+  fs.writeFileSync(npmPath, npmScript, "utf8");
+  fs.chmodSync(npmPath, 0o755);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,7 +359,10 @@ process.exit(2);
 
   // Also verify that the source of zikon.js uses process.exit(2) for SVG tracing errors
   const zikonSrc = fs.readFileSync(path.resolve(__dirname, "..", "cli", "zikon.js"), "utf8");
-  assert.ok(zikonSrc.includes("process.exit(2)"), "zikon.js must call process.exit(2) for SVG tracing errors");
+  assert.ok(
+    zikonSrc.includes("process.exit(EXIT_TRACE_ERROR)") || zikonSrc.includes("process.exit(2)"),
+    "zikon.js must call process.exit(2) for SVG tracing errors"
+  );
 
   fs.rmSync(tmpDir, { recursive: true });
 });
@@ -398,4 +503,133 @@ test("US-005-AC06: node --check syntax validation passes for zikon.js", () => {
     stdio: ["ignore", "pipe", "pipe"],
   });
   assert.equal(result.status, 0, `Syntax error in zikon.js:\n${result.stderr}`);
+});
+
+// ---------------------------------------------------------------------------
+// US-002-AC01..AC07: installer behavior
+// ---------------------------------------------------------------------------
+
+test("US-002-AC01/02/03/04/06: install creates ~/.zikon, copies runtime projects, installs deps, and updates shell profiles idempotently", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+  };
+
+  const firstRun = runZikon(["install"], { env });
+  assert.equal(firstRun.status, 0, `stderr: ${firstRun.stderr}`);
+
+  const installDir = path.join(tmpHome, ".zikon");
+  assert.ok(fs.existsSync(installDir), "install directory was not created");
+  assert.ok(fs.existsSync(path.join(installDir, "cli", "zikon.js")), "cli entry point missing after install");
+  assert.ok(fs.existsSync(path.join(installDir, "scripts", "generate", "pyproject.toml")), "scripts/generate project missing");
+  assert.ok(fs.existsSync(path.join(installDir, "scripts", "trace", "package.json")), "scripts/trace project missing");
+
+  assert.ok(fs.existsSync(path.join(installDir, "scripts", "generate", ".venv")), "uv virtual env was not created");
+  assert.ok(
+    fs.existsSync(path.join(installDir, "scripts", "trace", "node_modules", "imagetracerjs")),
+    "imagetracerjs was not installed"
+  );
+  assert.ok(
+    fs.existsSync(path.join(installDir, "cli", "node_modules", "commander")),
+    "commander was not installed"
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(logContent.includes("uv:sync"), "uv sync was not executed");
+  assert.ok(
+    logContent.includes(`npm:${path.join(installDir, "cli")}:install`),
+    "npm install was not executed for cli"
+  );
+  assert.ok(
+    logContent.includes(`npm:${path.join(installDir, "scripts", "trace")}:install`),
+    "npm install was not executed for scripts/trace"
+  );
+
+  const bashrcPath = path.join(tmpHome, ".bashrc");
+  const zshrcPath = path.join(tmpHome, ".zshrc");
+  const firstBashrc = fs.readFileSync(bashrcPath, "utf8");
+  const firstZshrc = fs.readFileSync(zshrcPath, "utf8");
+  assert.ok(firstBashrc.includes(`${installDir}/bin`), ".bashrc missing zikon bin path");
+  assert.ok(firstZshrc.includes(`${installDir}/bin`), ".zshrc missing zikon bin path");
+
+  const secondRun = runZikon(["install"], { env });
+  assert.equal(secondRun.status, 0, `stderr: ${secondRun.stderr}`);
+  const secondBashrc = fs.readFileSync(bashrcPath, "utf8");
+  const secondZshrc = fs.readFileSync(zshrcPath, "utf8");
+  assert.equal(
+    secondBashrc.split(`${installDir}/bin`).length - 1,
+    1,
+    ".bashrc contains duplicated zikon PATH entries"
+  );
+  assert.equal(
+    secondZshrc.split(`${installDir}/bin`).length - 1,
+    1,
+    ".zshrc contains duplicated zikon PATH entries"
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-002-AC05: after install, zikon command works from any directory and emits required JSON fields", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const workDir = makeTmpDir();
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+  };
+
+  const installResult = runZikon(["install"], { env });
+  assert.equal(installResult.status, 0, `stderr: ${installResult.stderr}`);
+
+  const installedCommand = path.join(tmpHome, ".zikon", "bin", "zikon");
+  const runResult = spawnSync(installedCommand, ["test icon", "--output-dir", workDir], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    cwd: workDir,
+    env,
+  });
+  assert.equal(runResult.status, 0, `stderr: ${runResult.stderr}`);
+  const payload = JSON.parse(runResult.stdout.trim());
+  assert.ok(payload.png_path, "missing png_path");
+  assert.ok(payload.svg_path, "missing svg_path");
+  assert.ok(payload.svg_inline, "missing svg_inline");
+
+  fs.rmSync(tmpHome, { recursive: true });
+  fs.rmSync(workDir, { recursive: true });
+});
+
+test("US-002-AC07: windows install prints manual PATH instructions", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_PLATFORM: "win32",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Add") && result.stderr.includes("PATH manually"),
+    `expected manual PATH instructions, got: ${result.stderr}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
 });
