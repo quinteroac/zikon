@@ -170,15 +170,15 @@ class GenerateScriptTests(unittest.TestCase):
             payload_text = result.stdout.strip()
             decoded, end = json.JSONDecoder().raw_decode(payload_text)
             self.assertEqual(end, len(payload_text))
-            self.assertEqual(
+            self.assertGreaterEqual(
                 set(decoded.keys()),
-                {"prompt", "enhanced_prompt", "model", "seed", "png_path"},
+                {"prompt", "enhanced_prompt", "model", "seed", "png_path", "svg_path", "svg_inline"},
             )
             self.assertEqual(decoded["prompt"], "  minimalist   icon  ")
             self.assertTrue(decoded["enhanced_prompt"].startswith("minimalist icon, "))
             self.assertEqual(decoded["model"], "sdxl")
             self.assertEqual(decoded["seed"], 7)
-            self.assertEqual(decoded["png_path"], str(output))
+            self.assertEqual(decoded["png_path"], str(output.resolve()))
 
     def test_us003_ac02_success_writes_only_json_to_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -245,7 +245,7 @@ class GenerateScriptTests(unittest.TestCase):
             self.assertTrue(output.exists())
             self.assertEqual(output.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
             payload = json.loads(result.stdout)
-            self.assertEqual(payload["png_path"], str(output))
+            self.assertEqual(payload["png_path"], str(output.resolve()))
 
     def test_us004_ac02_steps_uses_model_specific_default_when_omitted(self) -> None:
         self.assertEqual(generate.resolve_steps(None, "z-image-turbo"), 8)
@@ -322,6 +322,80 @@ class GenerateScriptTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertIn("enhanced_prompt", payload)
             self.assertTrue(payload["enhanced_prompt"].startswith("rocket, "))
+
+    # ------------------------------------------------------------------
+    # US-002: Structured JSON output with svg_path and svg_inline
+    # ------------------------------------------------------------------
+
+    def test_us002_ac01_stdout_contains_exactly_one_json_object(self) -> None:
+        """AC-01: stdout is exactly one JSON object with no leading/trailing text."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(prompt="minimalist icon", model="sdxl", output=output)
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload_text = result.stdout.strip()
+            decoded, end = json.JSONDecoder().raw_decode(payload_text)
+            self.assertEqual(end, len(payload_text))
+            self.assertIsInstance(decoded, dict)
+
+    def test_us002_ac02_json_includes_all_six_required_fields(self) -> None:
+        """AC-02: JSON object includes all six required fields with correct types."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(
+                prompt="minimalist icon", model="sdxl", output=output, seed=42
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn("prompt", payload)
+            self.assertIn("model", payload)
+            self.assertIn("seed", payload)
+            self.assertIn("png_path", payload)
+            self.assertIn("svg_path", payload)
+            self.assertIn("svg_inline", payload)
+            self.assertIsInstance(payload["prompt"], str)
+            self.assertIsInstance(payload["model"], str)
+            self.assertIsInstance(payload["seed"], int)
+            self.assertIsInstance(payload["png_path"], str)
+            self.assertIsInstance(payload["svg_path"], str)
+            self.assertIsInstance(payload["svg_inline"], str)
+            # png_path and svg_path must be absolute
+            self.assertTrue(Path(payload["png_path"]).is_absolute())
+            self.assertTrue(Path(payload["svg_path"]).is_absolute())
+
+    def test_us002_ac03_svg_inline_is_file_contents_not_path(self) -> None:
+        """AC-03: svg_inline contains the full SVG markup, not a filesystem path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(prompt="minimalist icon", model="sdxl", output=output)
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            svg_inline = payload["svg_inline"]
+            svg_path = Path(payload["svg_path"])
+            # svg_inline must contain SVG markup (not a path)
+            self.assertIn("<svg", svg_inline)
+            self.assertIn("</svg>", svg_inline)
+            # svg_inline must match what is written to disk
+            self.assertEqual(svg_inline, svg_path.read_text(encoding="utf-8"))
+
+    def test_us002_ac04_lint_and_type_checks_pass(self) -> None:
+        """AC-04: typecheck / lint passes."""
+        if shutil.which("ruff"):
+            lint = subprocess.run(
+                ["ruff", "check", "generate.py", "tests/test_generate.py"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(lint.returncode, 0, msg=lint.stdout + lint.stderr)
+
+        compile_check = subprocess.run(
+            ["python3", "-m", "py_compile", "generate.py"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(compile_check.returncode, 0, msg=compile_check.stderr)
 
     def test_us005_ac04_enhancement_is_applied_to_both_models(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

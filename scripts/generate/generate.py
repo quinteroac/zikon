@@ -118,6 +118,18 @@ def enhance_prompt_for_svg(prompt: str) -> str:
     return ", ".join(SVG_FRIENDLY_TERMS)
 
 
+def write_svg_stub(png_path: Path) -> tuple[Path, str]:
+    """Write a minimal stub SVG adjacent to the PNG and return (svg_path, svg_inline)."""
+    svg_path = png_path.with_suffix(".svg")
+    svg_inline = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">'
+        '<rect width="256" height="256" fill="#cccccc"/>'
+        "</svg>"
+    )
+    svg_path.write_text(svg_inline, encoding="utf-8")
+    return svg_path, svg_inline
+
+
 def run(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
 
@@ -136,6 +148,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         effective_steps = resolve_steps(args.steps, pipeline.pipeline_name)
         image = backend.generate_image(enhanced_prompt, pipeline, effective_steps, args.seed)
         image.save(output_path)
+        svg_path, svg_inline = write_svg_stub(output_path)
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         return EXIT_GENERATION_ERROR
@@ -145,7 +158,9 @@ def run(argv: Sequence[str] | None = None) -> int:
         "enhanced_prompt": enhanced_prompt,
         "model": args.model,
         "seed": args.seed,  # null in JSON when --seed is not supplied
-        "png_path": str(output_path),
+        "png_path": str(output_path.resolve()),
+        "svg_path": str(svg_path.resolve()),
+        "svg_inline": svg_inline,
     }
     print(json.dumps(result, separators=(",", ":")))
     return EXIT_SUCCESS
