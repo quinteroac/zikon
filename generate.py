@@ -25,6 +25,7 @@ EXIT_INVALID_ARGUMENTS = 3
 
 DEFAULT_OUTPUT = "./output.png"
 HF_REPO_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+DEFAULT_STEPS_BY_PIPELINE = {"z-image-turbo": 8, "sdxl": 40, "custom": 30}
 
 
 @dataclass(frozen=True)
@@ -69,8 +70,16 @@ def write_png(path: Path, rgb: tuple[int, int, int], width: int = 256, height: i
     path.write_bytes(png)
 
 
-def seed_to_color(prompt: str, model: str, seed: int | None) -> tuple[int, int, int]:
-    material = f"{prompt}|{model}|{seed if seed is not None else 'none'}".encode("utf-8")
+def resolve_steps(steps: int | None, pipeline_name: str) -> int:
+    if steps is not None:
+        if steps < 1:
+            raise ValueError("--steps must be >= 1")
+        return steps
+    return DEFAULT_STEPS_BY_PIPELINE[pipeline_name]
+
+
+def seed_to_color(prompt: str, model: str, seed: int | None, steps: int) -> tuple[int, int, int]:
+    material = f"{prompt}|{model}|{seed if seed is not None else 'none'}|{steps}".encode("utf-8")
     digest = hashlib.sha256(material).digest()
     return digest[0], digest[1], digest[2]
 
@@ -113,7 +122,8 @@ def run(argv: Sequence[str] | None = None) -> int:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         pipeline = load_pipeline_config(args.model)
         enhanced_prompt = sanitize_prompt(args.prompt)
-        color = seed_to_color(enhanced_prompt, pipeline.model_id, args.seed)
+        effective_steps = resolve_steps(args.steps, pipeline.pipeline_name)
+        color = seed_to_color(enhanced_prompt, pipeline.model_id, args.seed, effective_steps)
         write_png(output_path, color)
     except Exception as exc:  # pragma: no cover - defensive top-level handler
         print(str(exc), file=sys.stderr)

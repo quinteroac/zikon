@@ -20,6 +20,7 @@ class GenerateScriptTests(unittest.TestCase):
         model: str = "sdxl",
         output: Path,
         seed: int | None = None,
+        steps: int | None = None,
     ) -> subprocess.CompletedProcess[str]:
         command = [
             "python3",
@@ -33,6 +34,8 @@ class GenerateScriptTests(unittest.TestCase):
         ]
         if seed is not None:
             command.extend(["--seed", str(seed)])
+        if steps is not None:
+            command.extend(["--steps", str(steps)])
         return subprocess.run(command, check=False, capture_output=True, text=True)
 
     def test_ac01_model_z_image_turbo_uses_z_image_turbo_pipeline(self) -> None:
@@ -162,6 +165,74 @@ class GenerateScriptTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(compile_check.returncode, 0, msg=compile_check.stderr)
+
+    def test_us004_ac01_output_writes_png_to_requested_path_and_creates_parent_dirs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "deep" / "nested" / "icon.png"
+            result = self._run_generate(
+                prompt="minimalist icon",
+                model="z-image-turbo",
+                output=output,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertTrue(output.exists())
+            self.assertEqual(output.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["png_path"], str(output))
+
+    def test_us004_ac02_steps_uses_model_specific_default_when_omitted(self) -> None:
+        self.assertEqual(generate.resolve_steps(None, "z-image-turbo"), 8)
+        self.assertEqual(generate.resolve_steps(None, "sdxl"), 40)
+        self.assertEqual(generate.resolve_steps(None, "custom"), 30)
+        self.assertEqual(generate.resolve_steps(12, "sdxl"), 12)
+
+    def test_us004_ac02_steps_changes_generated_image_when_value_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_default = Path(tmpdir) / "default_steps.png"
+            output_custom = Path(tmpdir) / "custom_steps.png"
+
+            default_result = self._run_generate(
+                prompt="minimalist icon",
+                model="sdxl",
+                output=output_default,
+                seed=13,
+            )
+            custom_result = self._run_generate(
+                prompt="minimalist icon",
+                model="sdxl",
+                output=output_custom,
+                seed=13,
+                steps=5,
+            )
+
+            self.assertEqual(default_result.returncode, 0, msg=default_result.stderr)
+            self.assertEqual(custom_result.returncode, 0, msg=custom_result.stderr)
+            self.assertNotEqual(output_default.read_bytes(), output_custom.read_bytes())
+
+    def test_us004_ac03_seed_reproducibility_same_seed_same_prompt_same_image(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_a = Path(tmpdir) / "seed_a.png"
+            output_b = Path(tmpdir) / "seed_b.png"
+
+            first = self._run_generate(
+                prompt="minimalist icon",
+                model="sdxl",
+                output=output_a,
+                seed=21,
+                steps=9,
+            )
+            second = self._run_generate(
+                prompt="minimalist icon",
+                model="sdxl",
+                output=output_b,
+                seed=21,
+                steps=9,
+            )
+
+            self.assertEqual(first.returncode, 0, msg=first.stderr)
+            self.assertEqual(second.returncode, 0, msg=second.stderr)
+            self.assertEqual(output_a.read_bytes(), output_b.read_bytes())
 
 
 if __name__ == "__main__":
