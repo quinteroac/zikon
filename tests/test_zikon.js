@@ -79,6 +79,9 @@ if [[ "$1" == "run" ]]; then
   printf '{"prompt":"%s","model":"%s","seed":%s,"png_path":"%s"}\\n' "$prompt" "$model" "$seed_json" "$output"
   exit 0
 fi
+if [[ "$1" == "pip" ]]; then
+  exit 0
+fi
 exit 1
 `;
   fs.writeFileSync(uvPath, uvScript, "utf8");
@@ -136,6 +139,12 @@ exit 0
 `;
   fs.writeFileSync(npmPath, npmScript, "utf8");
   fs.chmodSync(npmPath, 0o755);
+}
+
+function writeFakeCommand(binDir, name, scriptBody) {
+  const scriptPath = path.join(binDir, name);
+  fs.writeFileSync(scriptPath, scriptBody, "utf8");
+  fs.chmodSync(scriptPath, 0o755);
 }
 
 // ---------------------------------------------------------------------------
@@ -521,6 +530,9 @@ test("US-002-AC01/02/03/04/06: install creates ~/.zikon, copies runtime projects
     USERPROFILE: tmpHome,
     PATH: `${fakeBin}:${process.env.PATH}`,
     ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "nvidia",
+    ZIKON_TEST_GPU_NAME: "NVIDIA GeForce RTX 4090",
+    ZIKON_TEST_GPU_VRAM_GB: "24",
   };
 
   const firstRun = runZikon(["install"], { env });
@@ -771,4 +783,223 @@ test("US-003-AC05: custom installation path behavior verified across linux, macO
 
     fs.rmSync(tmpHome, { recursive: true });
   }
+});
+
+// ---------------------------------------------------------------------------
+// US-004-AC01..AC07: GPU detection and backend selection during install
+// ---------------------------------------------------------------------------
+
+test("US-004-AC01/AC02/AC06: NVIDIA GPU with >=4GB selects CUDA backend and prints detection details", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+  writeFakeCommand(
+    fakeBin,
+    "nvidia-smi",
+    `#!/usr/bin/env bash
+echo "NVIDIA GeForce RTX 4090, 24564"
+`
+  );
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "nvidia",
+    ZIKON_TEST_GPU_NAME: "NVIDIA GeForce RTX 4090",
+    ZIKON_TEST_GPU_VRAM_GB: "24",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=nvidia"), `missing NVIDIA vendor in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("RTX 4090"), `missing NVIDIA name in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vram="), `missing VRAM in output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: cuda"),
+    `missing CUDA backend selection output: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(
+    logContent.includes("uv:pip install") && logContent.includes("download.pytorch.org/whl/cu124"),
+    `expected CUDA PyTorch install command, got log: ${logContent}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-004-AC01/AC03/AC06: AMD GPU with >=4GB selects ROCm backend and prints detection details", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+  writeFakeCommand(
+    fakeBin,
+    "rocm-smi",
+    `#!/usr/bin/env bash
+echo '{"card0":{"Card series":"AMD Radeon RX 7900 XTX","VRAM Total Memory (B)":25769803776}}'
+`
+  );
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "amd",
+    ZIKON_TEST_GPU_NAME: "AMD Radeon RX 7900 XTX",
+    ZIKON_TEST_GPU_VRAM_GB: "24",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=amd"), `missing AMD vendor in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("RX 7900 XTX"), `missing AMD name in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vram="), `missing VRAM in output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: rocm"),
+    `missing ROCm backend selection output: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(
+    logContent.includes("uv:pip install") && logContent.includes("download.pytorch.org/whl/rocm6.2.4"),
+    `expected ROCm PyTorch install command, got log: ${logContent}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-004-AC01/AC04/AC06: Apple Silicon selects MPS backend and prints detection details", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+  writeFakeCommand(
+    fakeBin,
+    "sysctl",
+    `#!/usr/bin/env bash
+echo "Apple M2 Max"
+`
+  );
+  writeFakeCommand(
+    fakeBin,
+    "system_profiler",
+    `#!/usr/bin/env bash
+echo "Hardware:"
+echo "    Memory: 32 GB"
+`
+  );
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_PLATFORM: "darwin",
+    ZIKON_TEST_ARCH: "arm64",
+    ZIKON_TEST_GPU_PROFILE: "apple",
+    ZIKON_TEST_GPU_NAME: "Apple M2 Max",
+    ZIKON_TEST_GPU_VRAM_GB: "32",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=apple"), `missing Apple vendor in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("Apple M2 Max"), `missing Apple chip name in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vram=32.00 GB"), `missing Apple memory output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: mps"),
+    `missing MPS backend selection output: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(logContent.includes("uv:pip install"), `expected PyTorch install command, got log: ${logContent}`);
+  assert.ok(logContent.includes(" torch"), "expected torch package to be installed");
+  assert.ok(!logContent.includes("/cu124"), "MPS install should not use CUDA index");
+  assert.ok(!logContent.includes("/rocm"), "MPS install should not use ROCm index");
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-004-AC05/AC06: no supported GPU falls back to CPU backend and warns user", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "none",
+    ZIKON_TEST_GPU_NAME: "No supported GPU detected",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=none"), `missing no-GPU detection output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: cpu"),
+    `missing CPU backend selection output: ${result.stderr}`
+  );
+  assert.ok(
+    result.stderr.includes("WARNING") && result.stderr.includes("CPU-only PyTorch"),
+    `missing CPU fallback warning: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(
+    logContent.includes("uv:pip install") && logContent.includes("download.pytorch.org/whl/cpu"),
+    `expected CPU PyTorch install command, got log: ${logContent}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-004-AC05/AC07: low-VRAM NVIDIA profile falls back to CPU backend in cross-machine scenario matrix", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+  writeFakeCommand(
+    fakeBin,
+    "nvidia-smi",
+    `#!/usr/bin/env bash
+echo "NVIDIA GeForce GTX 1650, 2048"
+`
+  );
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "nvidia",
+    ZIKON_TEST_GPU_NAME: "NVIDIA GeForce GTX 1650",
+    ZIKON_TEST_GPU_VRAM_GB: "2",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=nvidia"), `missing NVIDIA detection output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vram=2.00 GB"), `missing low VRAM output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: cpu"),
+    `expected CPU fallback backend for low VRAM, got: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(logContent.includes("download.pytorch.org/whl/cpu"), "low-VRAM scenario must install CPU backend");
+
+  fs.rmSync(tmpHome, { recursive: true });
 });
