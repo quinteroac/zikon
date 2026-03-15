@@ -1,0 +1,227 @@
+{
+  "goals": [
+    "Ship Zikon as a self-contained distributable that requires no manual dependency wiring.",
+    "Reduce time-to-first-run on a fresh machine to a single command: `zikon install`.",
+    "Support Linux, macOS, and Windows from the first release.",
+    "Detect hardware capabilities (GPU / VRAM) and select the appropriate CUDA variant automatically.",
+    "Guard against missing runtimes early by validating Node/Bun/npm/pnpm and uv before installation proceeds."
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Bun build pipeline",
+      "description": "As a developer distributing Zikon, I want a Bun-based build script that compiles the project into standalone binaries so that users can download a single file per platform without installing a runtime first.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-001-AC01",
+          "text": "Running `bun run build` (or equivalent) produces three binaries: `zikon-linux`, `zikon-macos`, `zikon-windows.exe`."
+        },
+        {
+          "id": "US-001-AC02",
+          "text": "Each binary bundles `cli/zikon.js` and all Node dependencies."
+        },
+        {
+          "id": "US-001-AC03",
+          "text": "`scripts/` (Python generate pipeline) is included as an embedded or co-located artifact alongside each binary."
+        },
+        {
+          "id": "US-001-AC04",
+          "text": "Build completes without errors on a machine with Bun installed."
+        },
+        {
+          "id": "US-001-AC05",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "`zikon install` — default installation to `~/.zikon`",
+      "description": "As a developer on a fresh machine, I want to run `zikon install` so that all runtime dependencies are set up automatically in `~/.zikon` and I can immediately use the `zikon` command.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-002-AC01",
+          "text": "`zikon install` creates `~/.zikon/` (or `%USERPROFILE%\\.zikon\\` on Windows) if it does not exist."
+        },
+        {
+          "id": "US-002-AC02",
+          "text": "The install directory contains: the CLI entry point, the `scripts/generate/` uv project, and the `scripts/trace/` Node project."
+        },
+        {
+          "id": "US-002-AC03",
+          "text": "uv virtual environment is created and all Python dependencies (`diffusers`, `torch`, `accelerate`, `Pillow`) are installed into it."
+        },
+        {
+          "id": "US-002-AC04",
+          "text": "Node packages for the tracer (`imagetracerjs`, `commander`) are installed via npm or pnpm."
+        },
+        {
+          "id": "US-002-AC05",
+          "text": "After install, running `zikon \"test icon\"` from any directory exits 0 and emits valid JSON with `png_path`, `svg_path`, and `svg_inline`."
+        },
+        {
+          "id": "US-002-AC06",
+          "text": "On Linux/macOS: `~/.bashrc` and/or `~/.zshrc` contain the install `bin/` path; running the installer a second time does not duplicate the entry."
+        },
+        {
+          "id": "US-002-AC07",
+          "text": "On Windows: installer prints instructions for adding the install directory to PATH manually."
+        },
+        {
+          "id": "US-002-AC08",
+          "text": "Manually verified on Linux, macOS, and Windows."
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "`zikon install --installation-path <path>` — custom install location",
+      "description": "As a developer who cannot or prefers not to install to the home directory, I want to pass `--installation-path <path>` so that Zikon is installed entirely under my chosen directory.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-003-AC01",
+          "text": "`zikon install --installation-path /custom/path` creates and populates that directory with the same layout as the default install."
+        },
+        {
+          "id": "US-003-AC02",
+          "text": "No files are written to `~/.zikon` when `--installation-path` is provided."
+        },
+        {
+          "id": "US-003-AC03",
+          "text": "After install, `zikon \"test icon\"` invoked from that path exits 0 and emits valid JSON."
+        },
+        {
+          "id": "US-003-AC04",
+          "text": "Passing a non-writable path prints a clear error message and exits with a non-zero code."
+        },
+        {
+          "id": "US-003-AC05",
+          "text": "Manually verified on Linux, macOS, and Windows."
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "System requirements check — GPU detection and backend selection",
+      "description": "As a developer running `zikon install`, I want the installer to detect my GPU vendor and available VRAM so that the correct PyTorch backend (CUDA, ROCm, or MPS) is installed automatically.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-004-AC01",
+          "text": "The installer detects GPU vendor: NVIDIA (CUDA), AMD (ROCm), or Apple Silicon (MPS/Metal)."
+        },
+        {
+          "id": "US-004-AC02",
+          "text": "For NVIDIA GPUs with VRAM ≥ 4 GB: CUDA-enabled PyTorch build is installed."
+        },
+        {
+          "id": "US-004-AC03",
+          "text": "For AMD GPUs with VRAM ≥ 4 GB: ROCm-enabled PyTorch build is installed."
+        },
+        {
+          "id": "US-004-AC04",
+          "text": "For Apple Silicon (M-series): MPS-enabled PyTorch build is installed."
+        },
+        {
+          "id": "US-004-AC05",
+          "text": "If no supported GPU is found or VRAM < 4 GB: CPU-only PyTorch build is installed and the user is warned that it might not work."
+        },
+        {
+          "id": "US-004-AC06",
+          "text": "The detected GPU name, VRAM, vendor, and selected backend are printed to the console during install."
+        },
+        {
+          "id": "US-004-AC07",
+          "text": "Manually verified on a CUDA machine, an AMD machine, an Apple Silicon machine, and a CPU-only machine."
+        }
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Runtime dependency validation",
+      "description": "As a developer running `zikon install`, I want the installer to check for required system tools so that I know exactly what to install if something is missing before the process fails mid-way.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-005-AC01",
+          "text": "The installer checks for the presence of: `bun`, `node`, and at least one of `npm` / `pnpm` (Node package managers)."
+        },
+        {
+          "id": "US-005-AC02",
+          "text": "The installer checks for the presence of `uv` (Python package manager)."
+        },
+        {
+          "id": "US-005-AC03",
+          "text": "If any required tool is missing, the installer prints a clear, actionable message (e.g. \"uv not found — install with: curl -Ls https://astral.sh/uv/install.sh | sh\") and exits with a non-zero code **before** making any changes to the filesystem."
+        },
+        {
+          "id": "US-005-AC04",
+          "text": "If all required tools are present, the installer proceeds without prompts."
+        },
+        {
+          "id": "US-005-AC05",
+          "text": "Manually verified with at least one tool intentionally missing."
+        }
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "Installation documentation",
+      "description": "As a developer on any supported OS, I want clear installation instructions so that I can set up Zikon without trial and error.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-006-AC01",
+          "text": "`README.md` contains an \"Installation\" section covering Linux, macOS, and Windows."
+        },
+        {
+          "id": "US-006-AC02",
+          "text": "The section documents the prerequisites (Bun, Node.js, uv) with install links for each OS."
+        },
+        {
+          "id": "US-006-AC03",
+          "text": "The section shows the exact commands to run from download to first successful `zikon` invocation."
+        },
+        {
+          "id": "US-006-AC04",
+          "text": "Visually verified in browser (GitHub README render)."
+        }
+      ]
+    }
+  ],
+  "functionalRequirements": [
+    {
+      "id": "FR-1",
+      "description": "The Bun build script must target three platforms: `linux-x64`, `darwin-x64` (macOS), and `win32-x64`."
+    },
+    {
+      "id": "FR-2",
+      "description": "The default install directory is `~/.zikon` on Linux/macOS and `%USERPROFILE%\\.zikon` on Windows."
+    },
+    {
+      "id": "FR-3",
+      "description": "`--installation-path` overrides the default install directory completely; no fallback to default."
+    },
+    {
+      "id": "FR-4",
+      "description": "GPU detection must cover NVIDIA (CUDA), AMD (ROCm), and Apple Silicon (MPS); absence of a supported GPU must not crash the installer — fall back to CPU-only."
+    },
+    {
+      "id": "FR-5",
+      "description": "Runtime validation must run before any filesystem writes."
+    },
+    {
+      "id": "FR-6",
+      "description": "All installer output (progress, warnings, errors) goes to stderr; no additional stdout output beyond the existing JSON contract."
+    },
+    {
+      "id": "FR-7",
+      "description": "Exit codes follow the existing convention: `0` success · `1` install error · `3` invalid/missing arguments."
+    },
+    {
+      "id": "FR-8",
+      "description": "On Linux and macOS, the installer appends the install `bin/` directory to the user's shell config (`~/.bashrc` and/or `~/.zshrc`) if not already present, prints what was changed, and is idempotent (running install twice does not duplicate the entry)."
+    },
+    {
+      "id": "FR-9",
+      "description": "On Windows, the installer does NOT modify the PATH registry; instead it prints a clear one-liner at the end of install telling the user how to add the install directory to their PATH manually."
+    }
+  ]
+}

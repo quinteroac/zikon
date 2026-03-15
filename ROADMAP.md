@@ -24,19 +24,35 @@ Goal: integrate `imagetracerjs` to convert the generated PNG to SVG.
 
 ---
 
-## [ ] Iteration 3 — Unified CLI
+## [X] Iteration 3 — Unified CLI
 
 Goal: a single `zikon` command that orchestrates the full end-to-end pipeline.
 
-- [ ] Orchestrator script (bash or Node) that chains `generate.py` → `trace.js`
-- [ ] Interface: `zikon <prompt> [--model] [--output-dir] [--style]`
-- [ ] Structured JSON output: `prompt`, `model`, `seed`, `png_path`, `svg_path`, `svg_inline`
-- [ ] Clean error handling and exit codes (critical for agent consumption)
-- [ ] **Done when:** `zikon "app logo" --model sdxl --output-dir ./assets` produces PNG + SVG + JSON in one command
+- [X] Orchestrator script (bash or Node) that chains `generate.py` → `trace.js`
+- [X] Interface: `zikon <prompt> [--model] [--output-dir] [--style]`
+- [X] Structured JSON output: `prompt`, `model`, `seed`, `png_path`, `svg_path`, `svg_inline`
+- [X] Clean error handling and exit codes (critical for agent consumption)
+- [X] **Done when:** `zikon "app logo" --model sdxl --output-dir ./assets` produces PNG + SVG + JSON in one command
 
 ---
 
-## [ ] Iteration 4 — Installable Agent Skill
+## [ ] Iteration 4 — Zikon build package
+
+Goal: cross-platform build package using Bun that ships the CLI and scripts with a one-command installer.
+
+- [ ] Create Bun-based build pipeline that packages `cli/` + `scripts/` for Linux, macOS, and Windows
+- [ ] Add `zikon install` command in the CLI
+- [ ] `zikon install` sets up runtime dependencies (`uv` Python environment + Node packages for tracer)
+- [ ] Default installation directory is `~/.zikon` (or OS-equivalent user home location)
+- [ ] If user passes `--instalation-path <path>`, install everything in that explicit location
+- [ ] Ensure generated install layout is self-contained and usable by subsequent `zikon` commands
+- [ ] Installation and usage documentation for all supported OSesa
+- [ ] Integration test: fresh machine setup → `zikon install` → successful end-to-end PNG+SVG generation
+- [ ] **Done when:** user can run `zikon install` and immediately use `zikon` without manual dependency setup
+
+---
+
+## [ ] Iteration 5 — Installable Agent Skill
 
 Goal: installable `.md` skill for Claude Code and Codex that exposes the pipeline as an agent tool.
 
@@ -48,7 +64,7 @@ Goal: installable `.md` skill for Claude Code and Codex that exposes the pipelin
 
 ---
 
-## [ ] Iteration 5 — Layered tracing via segmentation
+## [ ] Iteration 6 — Layered tracing via segmentation
 
 Goal: refine the tracing pipeline by segmenting the generated PNG with GroundingDINO + SAM2 before sending each region through `imagetracerjs`, producing a cleaner SVG with tighter, more controllable layers.
 
