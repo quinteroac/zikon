@@ -10,13 +10,15 @@
  * stdout  : single JSON object (prompt, model, seed, png_path, svg_path, svg_inline)
  * stderr  : progress and debug output
  * exit 0  : success
- * exit 1  : generation or tracing error
- * exit 3  : invalid arguments
+ * exit 1  : PNG generation error (generate.py failed)
+ * exit 2  : SVG tracing error (tracer subprocess failed)
+ * exit 3  : invalid or missing arguments
  */
 
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { Command } = require("commander");
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -42,43 +44,24 @@ const PNGREADER_JS = path.join(
 );
 
 // ---------------------------------------------------------------------------
-// Argument parsing
+// Argument parsing (commander.js)
 // ---------------------------------------------------------------------------
 
-/**
- * @param {string[]} argv
- * @returns {{ prompt: string|null, model: string, outputDir: string, seed: number|null, style: string|null }}
- */
-function parseArgs(argv) {
-  const args = argv.slice(2);
-  const opts = {
-    prompt: null,
-    model: "z-image-turbo",
-    outputDir: "./out",
-    seed: null,
-    style: null,
-  };
+const program = new Command();
 
-  let i = 0;
-  while (i < args.length) {
-    const arg = args[i];
-    if (arg === "--model") {
-      opts.model = args[++i];
-    } else if (arg === "--output-dir") {
-      opts.outputDir = args[++i];
-    } else if (arg === "--seed") {
-      const parsed = parseInt(args[++i], 10);
-      if (!Number.isNaN(parsed)) opts.seed = parsed;
-    } else if (arg === "--style") {
-      opts.style = args[++i];
-    } else if (!arg.startsWith("--")) {
-      opts.prompt = arg;
-    }
-    i++;
-  }
-
-  return opts;
-}
+program
+  .name("zikon")
+  .description("End-to-end logo generation pipeline: prompt → PNG → SVG")
+  .argument("<prompt>", "text prompt describing the logo to generate")
+  .option("--model <id>", "model to use: z-image-turbo, sdxl, or a HuggingFace repo ID", "z-image-turbo")
+  .option("--output-dir <dir>", "directory to write output files", "./out")
+  .option("--seed <int>", "integer seed for deterministic generation")
+  .option("--style <str>", "style preset to apply to the prompt")
+  .configureOutput({
+    writeOut: (str) => process.stderr.write(str),
+    writeErr: (str) => process.stderr.write(str),
+  })
+  .exitOverride();
 
 // ---------------------------------------------------------------------------
 // PNG → SVG via imagetracerjs
@@ -116,13 +99,17 @@ function pngToSvg(pngPath) {
 // ---------------------------------------------------------------------------
 
 async function main() {
-  const opts = parseArgs(process.argv);
-
-  if (!opts.prompt) {
-    process.stderr.write("Error: a prompt is required as the first positional argument.\n");
-    process.stderr.write("Usage: node zikon.js \"<prompt>\" [--model <id>] [--output-dir <dir>] [--seed <int>]\n");
+  // Parse arguments — throws on invalid/missing args (commander.exitOverride)
+  try {
+    program.parse(process.argv);
+  } catch (err) {
+    // commander already wrote the error message to stderr; also print help
+    program.outputHelp();
     process.exit(3);
   }
+
+  const opts = program.opts();
+  const prompt = program.args[0];
 
   // Resolve output directory
   const outputDir = path.resolve(opts.outputDir);
@@ -130,7 +117,7 @@ async function main() {
 
   // Derive a filesystem-safe base name from the prompt
   const safeName =
-    opts.prompt
+    prompt
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "")
@@ -142,11 +129,11 @@ async function main() {
   // Build generate.py invocation
   const pyArgs = [
     GENERATE_PY,
-    "--prompt", opts.prompt,
+    "--prompt", prompt,
     "--model", opts.model,
     "--output", pngPath,
   ];
-  if (opts.seed !== null) {
+  if (opts.seed !== undefined) {
     pyArgs.push("--seed", String(opts.seed));
   }
 
@@ -160,6 +147,11 @@ async function main() {
 
   if (genResult.status !== 0) {
     process.stderr.write(`[zikon] generate.py exited with code ${genResult.status}\n`);
+    // generate.py exit 3 means invalid arguments → propagate as exit 3
+    if (genResult.status === 3) {
+      program.outputHelp();
+      process.exit(3);
+    }
     process.exit(1);
   }
 
@@ -179,7 +171,7 @@ async function main() {
     svgInline = await pngToSvg(pngPath);
   } catch (err) {
     process.stderr.write(`[zikon] SVG tracing failed: ${err.message}\n`);
-    process.exit(1);
+    process.exit(2);
   }
 
   // Write SVG file
@@ -187,7 +179,7 @@ async function main() {
 
   // Emit final JSON to stdout (only line on stdout)
   const result = {
-    prompt: opts.prompt,
+    prompt: prompt,
     model: opts.model,
     seed: genPayload.seed,
     png_path: pngPath,
