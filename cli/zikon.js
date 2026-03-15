@@ -145,6 +145,52 @@ function run_probe_command(command, args) {
   });
 }
 
+function get_forced_missing_tools() {
+  const raw = process.env.ZIKON_TEST_FORCE_MISSING_TOOLS || "";
+  return new Set(
+    raw
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+  );
+}
+
+function has_command(command) {
+  const forced_missing = get_forced_missing_tools();
+  if (forced_missing.has(command)) {
+    return false;
+  }
+  const result = run_probe_command(command, ["--version"]);
+  if (result.error && result.error.code === "ENOENT") {
+    return false;
+  }
+  return true;
+}
+
+function validate_install_dependencies() {
+  const missing_messages = [];
+
+  if (!has_command("bun")) {
+    missing_messages.push("bun not found - install with: curl -fsSL https://bun.sh/install | bash");
+  }
+  if (!has_command("node")) {
+    missing_messages.push("node not found - install from: https://nodejs.org/en/download");
+  }
+  if (!has_command("uv")) {
+    missing_messages.push("uv not found - install with: curl -Ls https://astral.sh/uv/install.sh | sh");
+  }
+  if (!has_command("npm") && !has_command("pnpm")) {
+    missing_messages.push(
+      "npm/pnpm not found - install npm (bundled with Node.js) or pnpm: https://pnpm.io/installation"
+    );
+  }
+
+  return {
+    ok: missing_messages.length === 0,
+    missing_messages,
+  };
+}
+
 function parse_vram_gb_from_mb(megabytes_text) {
   const parsed = Number.parseFloat(String(megabytes_text).replace(/[^\d.]/g, ""));
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -515,6 +561,14 @@ async function main() {
     if (!parsed_install.ok) {
       write_stderr("Usage: zikon install [--installation-path <path>]\n");
       process.exit(EXIT_INVALID_ARGUMENTS);
+    }
+    const dependencies = validate_install_dependencies();
+    if (!dependencies.ok) {
+      write_stderr("[zikon] Missing required runtime tools:\n");
+      for (const message of dependencies.missing_messages) {
+        write_stderr(`[zikon] - ${message}\n`);
+      }
+      process.exit(EXIT_GENERATION_ERROR);
     }
     try {
       const install_dir = parsed_install.installation_path || get_install_dir();

@@ -43,6 +43,17 @@ function makeTmpDir() {
 function makeFakeBin(binDir) {
   fs.mkdirSync(binDir, { recursive: true });
 
+  const bunPath = path.join(binDir, "bun");
+  const bunScript = `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "1.2.0"
+fi
+exit 0
+`;
+  fs.writeFileSync(bunPath, bunScript, "utf8");
+  fs.chmodSync(bunPath, 0o755);
+
   const uvPath = path.join(binDir, "uv");
   const uvScript = `#!/usr/bin/env bash
 set -euo pipefail
@@ -1000,6 +1011,104 @@ echo "NVIDIA GeForce GTX 1650, 2048"
 
   const logContent = fs.readFileSync(logFile, "utf8");
   assert.ok(logContent.includes("download.pytorch.org/whl/cpu"), "low-VRAM scenario must install CPU backend");
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+// ---------------------------------------------------------------------------
+// Iteration 000004 - US-005-AC01..AC05: runtime dependency validation
+// ---------------------------------------------------------------------------
+
+test("US-005-AC01: installer validates bun, node, and npm/pnpm before install", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_FORCE_MISSING_TOOLS: "bun,node,npm,pnpm",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.notEqual(result.status, 0, "install must fail when required runtime tools are missing");
+  assert.ok(result.stderr.includes("bun not found"), `missing bun guidance in stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("node not found"), `missing node guidance in stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("npm/pnpm not found"), `missing npm/pnpm guidance in stderr: ${result.stderr}`);
+  assert.ok(!fs.existsSync(path.join(tmpHome, ".zikon")), "installer must not create filesystem artifacts on failed preflight");
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-005-AC02/AC03: installer validates uv and exits before filesystem changes with actionable guidance", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const installPath = path.join(tmpHome, "custom", "install-location");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_FORCE_MISSING_TOOLS: "uv",
+  };
+
+  const result = runZikon(["install", "--installation-path", installPath], { env });
+  assert.notEqual(result.status, 0, "install must fail when uv is missing");
+  assert.ok(
+    result.stderr.includes("uv not found - install with: curl -Ls https://astral.sh/uv/install.sh | sh"),
+    `stderr must include actionable uv guidance; got: ${result.stderr}`
+  );
+  assert.ok(
+    !fs.existsSync(installPath),
+    "installer must fail before creating installation path when dependency preflight fails"
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-005-AC04: installer proceeds without prompts when all runtime dependencies are available", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_GPU_PROFILE: "none",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(
+    !result.stderr.includes("Missing required runtime tools"),
+    `preflight should pass when tools are available; stderr: ${result.stderr}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-005-AC05: intentionally missing one tool is verified to fail fast", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_FORCE_MISSING_TOOLS: "bun",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.notEqual(result.status, 0, "installer must fail when bun is intentionally missing");
+  assert.ok(result.stderr.includes("bun not found"), `missing bun guidance in stderr: ${result.stderr}`);
 
   fs.rmSync(tmpHome, { recursive: true });
 });
