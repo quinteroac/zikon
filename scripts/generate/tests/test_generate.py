@@ -22,6 +22,7 @@ class GenerateScriptTests(unittest.TestCase):
         output: Path,
         seed: int | None = None,
         steps: int | None = None,
+        style: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         command = [
             "python3",
@@ -37,6 +38,8 @@ class GenerateScriptTests(unittest.TestCase):
             command.extend(["--seed", str(seed)])
         if steps is not None:
             command.extend(["--steps", str(steps)])
+        if style is not None:
+            command.extend(["--style", style])
         return subprocess.run(command, check=False, capture_output=True, text=True)
 
     # ------------------------------------------------------------------
@@ -414,6 +417,84 @@ class GenerateScriptTests(unittest.TestCase):
             payload_sdxl = json.loads(result_sdxl.stdout)
             payload_turbo = json.loads(result_turbo.stdout)
             self.assertEqual(payload_sdxl["enhanced_prompt"], payload_turbo["enhanced_prompt"])
+
+
+    # ------------------------------------------------------------------
+    # US-004 (it_000003): --style flag influences prompt
+    # ------------------------------------------------------------------
+
+    def test_us004_style_ac01_style_hint_appended_to_enhanced_prompt(self) -> None:
+        """AC-01: --style appends the hint to the enhanced prompt in JSON output."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(
+                prompt="rocket",
+                model="sdxl",
+                output=output,
+                style="flat minimalist",
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn("flat minimalist", payload["enhanced_prompt"])
+
+    def test_us004_style_ac01_style_hint_in_enhance_prompt_for_svg_function(self) -> None:
+        """AC-01: enhance_prompt_for_svg appends the style hint."""
+        enhanced = generate.enhance_prompt_for_svg("rocket", "flat minimalist")
+        self.assertIn("flat minimalist", enhanced)
+        self.assertTrue(enhanced.startswith("rocket,"))
+
+    def test_us004_style_ac02_prompt_field_reflects_original_only(self) -> None:
+        """AC-02: the 'prompt' JSON field contains only the original prompt, not the style hint."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(
+                prompt="rocket",
+                model="sdxl",
+                output=output,
+                style="flat minimalist",
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["prompt"], "rocket")
+            self.assertNotIn("flat minimalist", payload["prompt"])
+
+    def test_us004_style_ac03_omitting_style_produces_no_change(self) -> None:
+        """AC-03: omitting --style yields the same enhanced_prompt as the baseline."""
+        enhanced_without_style = generate.enhance_prompt_for_svg("rocket")
+        enhanced_with_none = generate.enhance_prompt_for_svg("rocket", None)
+        self.assertEqual(enhanced_without_style, enhanced_with_none)
+
+    def test_us004_style_ac03_subprocess_without_style_matches_baseline(self) -> None:
+        """AC-03: subprocess run without --style behaves identically to the baseline."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_baseline = Path(tmpdir) / "baseline.png"
+            output_no_style = Path(tmpdir) / "no_style.png"
+            baseline = self._run_generate(prompt="rocket", model="sdxl", output=output_baseline, seed=1)
+            no_style = self._run_generate(prompt="rocket", model="sdxl", output=output_no_style, seed=1)
+            self.assertEqual(baseline.returncode, 0, msg=baseline.stderr)
+            self.assertEqual(no_style.returncode, 0, msg=no_style.stderr)
+            p_baseline = json.loads(baseline.stdout)
+            p_no_style = json.loads(no_style.stdout)
+            self.assertEqual(p_baseline["enhanced_prompt"], p_no_style["enhanced_prompt"])
+
+    def test_us004_style_ac04_lint_and_type_checks_pass(self) -> None:
+        """AC-04: typecheck / lint passes."""
+        if shutil.which("ruff"):
+            lint = subprocess.run(
+                ["ruff", "check", "generate.py", "tests/test_generate.py"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(lint.returncode, 0, msg=lint.stdout + lint.stderr)
+
+        compile_check = subprocess.run(
+            ["python3", "-m", "py_compile", "generate.py"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(compile_check.returncode, 0, msg=compile_check.stderr)
 
 
 if __name__ == "__main__":

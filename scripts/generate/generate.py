@@ -77,6 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--steps", type=int, help="Optional diffusion step count")
     parser.add_argument("--seed", type=int, help="Optional seed for reproducibility")
+    parser.add_argument("--style", default=None, help="Optional style hint appended to the enhanced prompt")
     return parser
 
 
@@ -111,11 +112,15 @@ def normalize_prompt(prompt: str) -> str:
     return " ".join(prompt.split())
 
 
-def enhance_prompt_for_svg(prompt: str) -> str:
+def enhance_prompt_for_svg(prompt: str, style_hint: str | None = None) -> str:
     normalized_prompt = normalize_prompt(prompt)
-    if normalized_prompt:
-        return f"{normalized_prompt}, {', '.join(SVG_FRIENDLY_TERMS)}"
-    return ", ".join(SVG_FRIENDLY_TERMS)
+    svg_terms = ", ".join(SVG_FRIENDLY_TERMS)
+    base = f"{normalized_prompt}, {svg_terms}" if normalized_prompt else svg_terms
+    if style_hint:
+        normalized_style = normalize_prompt(style_hint)
+        if normalized_style:
+            base = f"{base}, {normalized_style}"
+    return base
 
 
 def write_svg_stub(png_path: Path) -> tuple[Path, str]:
@@ -144,7 +149,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         pipeline = load_pipeline_config(args.model)
-        enhanced_prompt = enhance_prompt_for_svg(args.prompt)
+        enhanced_prompt = enhance_prompt_for_svg(args.prompt, args.style)
         effective_steps = resolve_steps(args.steps, pipeline.pipeline_name)
         image = backend.generate_image(enhanced_prompt, pipeline, effective_steps, args.seed)
         image.save(output_path)
