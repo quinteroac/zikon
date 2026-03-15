@@ -1,0 +1,202 @@
+{
+  "goals": [
+    "Reduce the full pipeline to a single command invocation for humans and agents alike.",
+    "Guarantee a machine-readable JSON object on stdout so downstream agents can parse results without shell scripting.",
+    "Provide built-in argument validation with auto-generated `--help` output via commander.js."
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "End-to-end pipeline in one command",
+      "description": "As a developer or AI agent, I want to run `node zikon.js \"<prompt>\" [--model] [--output-dir] [--seed] [--style]` so that I receive a PNG, an SVG, and a JSON metadata object without invoking two scripts manually.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-001-AC01",
+          "text": "Running `node zikon.js \"app logo\" --model z-image-turbo --output-dir ./out` exits 0."
+        },
+        {
+          "id": "US-001-AC02",
+          "text": "A valid PNG file is written to `--output-dir`."
+        },
+        {
+          "id": "US-001-AC03",
+          "text": "A valid, well-formed SVG file is written to `--output-dir` (same base name as PNG)."
+        },
+        {
+          "id": "US-001-AC04",
+          "text": "A single JSON object is printed to stdout containing: `prompt`, `model`, `seed`, `png_path`, `svg_path`, `svg_inline`."
+        },
+        {
+          "id": "US-001-AC05",
+          "text": "Nothing other than the final JSON is written to stdout; all progress/debug output goes to stderr."
+        },
+        {
+          "id": "US-001-AC06",
+          "text": "Visually verified in browser: the SVG renders without errors."
+        },
+        {
+          "id": "US-001-AC07",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "Structured JSON output",
+      "description": "As an AI agent, I want the JSON on stdout to always follow the same schema so that I can parse it with a single `JSON.parse()` call.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-002-AC01",
+          "text": "stdout contains exactly one JSON object (no leading/trailing text)."
+        },
+        {
+          "id": "US-002-AC02",
+          "text": "The object includes all six fields: `prompt` (string), `model` (string), `seed` (integer), `png_path` (absolute path string), `svg_path` (absolute path string), `svg_inline` (SVG markup string)."
+        },
+        {
+          "id": "US-002-AC03",
+          "text": "`svg_inline` is the full SVG file contents as a string (not a path)."
+        },
+        {
+          "id": "US-002-AC04",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Exit codes for error conditions",
+      "description": "As an AI agent, I want predictable exit codes so that I can distinguish argument errors from pipeline failures without parsing stderr.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-003-AC01",
+          "text": "Exit `0` on success."
+        },
+        {
+          "id": "US-003-AC02",
+          "text": "Exit `1` on PNG generation error (subprocess `generate.py` fails)."
+        },
+        {
+          "id": "US-003-AC03",
+          "text": "Exit `2` on SVG tracing error (tracer subprocess fails)."
+        },
+        {
+          "id": "US-003-AC04",
+          "text": "Exit `3` on invalid or missing arguments (e.g., missing `<prompt>`, unrecognised `--model`)."
+        },
+        {
+          "id": "US-003-AC05",
+          "text": "On exit `3`, commander.js prints the help text to stderr before exiting."
+        },
+        {
+          "id": "US-003-AC06",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "`--style` flag influences prompt",
+      "description": "As a developer, I want to pass `--style <hint>` so that the style hint is appended to the prompt before it reaches `generate.py`.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-004-AC01",
+          "text": "Running with `--style \"flat minimalist\"` appends the style hint to the enhanced prompt forwarded to `generate.py`."
+        },
+        {
+          "id": "US-004-AC02",
+          "text": "The `prompt` field in JSON output reflects the original prompt only; the style-augmented string is used internally."
+        },
+        {
+          "id": "US-004-AC03",
+          "text": "Omitting `--style` produces no change in behaviour vs. the current pipeline."
+        },
+        {
+          "id": "US-004-AC04",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Documentation updated to reflect the unified CLI",
+      "description": "As a developer or AI agent reading the project docs, I want `README.md`, `AGENTS.md`, and `.agents/PROJECT_CONTEXT.md` to describe the `zikon` CLI so that I know how to invoke the full pipeline without reading source code.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-005-AC01",
+          "text": "`README.md` includes a usage example: `node cli/zikon.js \"<prompt>\" --model <model> --output-dir <path>` with the expected JSON output schema."
+        },
+        {
+          "id": "US-005-AC02",
+          "text": "`AGENTS.md` — Script layout table updated to include `cli/` row; CLI interface section updated to show the unified command and its flags."
+        },
+        {
+          "id": "US-005-AC03",
+          "text": "`AGENTS.md` — Output JSON example updated to show all six fields (`prompt`, `model`, `seed`, `png_path`, `svg_path`, `svg_inline`)."
+        },
+        {
+          "id": "US-005-AC04",
+          "text": "`.agents/PROJECT_CONTEXT.md` — Modular structure section updated to document `cli/zikon.js` and `cli/package.json`; Implemented Capabilities section updated to list Iteration 3 stories."
+        },
+        {
+          "id": "US-005-AC05",
+          "text": "No doc change introduces outdated invocation examples (e.g., references to `scripts/orchestrate/`)."
+        },
+        {
+          "id": "US-005-AC06",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    }
+  ],
+  "functionalRequirements": [
+    {
+      "id": "FR-1",
+      "description": "** The orchestrator lives at `cli/zikon.js` with its own `package.json` listing `commander` as a dependency."
+    },
+    {
+      "id": "FR-2",
+      "description": "** Use `commander` v14. Define the CLI with `program.argument('<prompt>', 'text description of the icon')`. Options: `--model <model>` (default `z-image-turbo`), `--output-dir <path>` (default `./output`), `--seed <number>` (optional integer), `--style <hint>` (optional string)."
+    },
+    {
+      "id": "FR-3",
+      "description": "** Use `program.exitOverride()` so that commander errors (missing required arg, unknown option) are caught and re-thrown with `process.exit(3)` after printing help to stderr (`program.help()` or the built-in error message)."
+    },
+    {
+      "id": "FR-4",
+      "description": "** The orchestrator spawns `generate.py` as a child process via `child_process.spawnSync` (or `execFileSync`). It captures the JSON from stdout and propagates stderr to its own stderr. If the subprocess exits non-zero, the orchestrator exits `1`."
+    },
+    {
+      "id": "FR-5",
+      "description": "** The orchestrator spawns the tracer script as a child process, passing the PNG path from step FR-4. If the subprocess exits non-zero, the orchestrator exits `2`."
+    },
+    {
+      "id": "FR-6",
+      "description": "** `svg_inline` is read from the written SVG file and embedded as a string in the final JSON."
+    },
+    {
+      "id": "FR-7",
+      "description": "** The final JSON is written with `process.stdout.write(JSON.stringify(result) + '\\n')`. No `console.log` or other writes to stdout anywhere in the orchestrator."
+    },
+    {
+      "id": "FR-8",
+      "description": "** `--output-dir` is created if it does not exist (using `fs.mkdirSync` with `{ recursive: true }`)."
+    },
+    {
+      "id": "FR-9",
+      "description": "** All model identifiers accepted by `generate.py` (`z-image-turbo`, `sdxl`, or any HuggingFace repo ID) are passed through without validation in the orchestrator — `generate.py` is the source of truth for valid models (exit `1` handles invalid model errors)."
+    },
+    {
+      "id": "FR-10",
+      "description": "** After a successful run, update `README.md` to include the `cli/zikon.js` usage example and the output JSON schema."
+    },
+    {
+      "id": "FR-11",
+      "description": "** Update `AGENTS.md`: add `cli/` to the Script layout table, replace the planned unified CLI section with the actual command signature, and update the output JSON example to show all six fields."
+    },
+    {
+      "id": "FR-12",
+      "description": "** Update `.agents/PROJECT_CONTEXT.md`: add `cli/zikon.js` and `cli/package.json` to the Modular Structure section; append Iteration 3 implemented capabilities (US-001 through US-005)."
+    }
+  ]
+}
