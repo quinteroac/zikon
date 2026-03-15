@@ -217,3 +217,75 @@ test('US-002-AC05: node --check trace.js syntax check passes', () => {
   const result = spawnSync('node', ['--check', TRACE_JS], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0, `Syntax check failed: ${result.stderr}`);
 });
+
+// US-003-AC01: stdout contains exactly one JSON object with required fields
+test('US-003-AC01: stdout contains JSON with png_path, svg_path, svg_inline, colors, tolerance, scale', () => {
+  const { tmpDir, pngPath } = createTmpPng();
+  try {
+    const result = spawnSync('node', [TRACE_JS, pngPath], { encoding: 'utf8' });
+    assert.strictEqual(result.status, 0);
+    let parsed;
+    assert.doesNotThrow(() => { parsed = JSON.parse(result.stdout.trim()); }, 'stdout must be valid JSON');
+    assert.ok('png_path' in parsed, 'JSON must contain png_path');
+    assert.ok('svg_path' in parsed, 'JSON must contain svg_path');
+    assert.ok('svg_inline' in parsed, 'JSON must contain svg_inline');
+    assert.ok('colors' in parsed, 'JSON must contain colors');
+    assert.ok('tolerance' in parsed, 'JSON must contain tolerance');
+    assert.ok('scale' in parsed, 'JSON must contain scale');
+    const nonEmptyLines = result.stdout.split('\n').filter((l) => l.trim());
+    assert.strictEqual(nonEmptyLines.length, 1, 'stdout must contain exactly one JSON object');
+  } finally {
+    cleanup(tmpDir);
+  }
+});
+
+// US-003-AC02: svg_inline contains the full SVG markup as a string
+test('US-003-AC02: svg_inline contains full SVG markup', () => {
+  const { tmpDir, pngPath } = createTmpPng();
+  try {
+    const result = spawnSync('node', [TRACE_JS, pngPath], { encoding: 'utf8' });
+    assert.strictEqual(result.status, 0);
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.ok(typeof parsed.svg_inline === 'string', 'svg_inline must be a string');
+    assert.ok(parsed.svg_inline.includes('<svg'), 'svg_inline must contain opening <svg tag');
+    assert.ok(parsed.svg_inline.includes('</svg>'), 'svg_inline must contain closing </svg> tag');
+    const openIdx = parsed.svg_inline.indexOf('<svg');
+    const closeIdx = parsed.svg_inline.lastIndexOf('</svg>');
+    assert.ok(openIdx < closeIdx, '<svg> must appear before </svg> in svg_inline');
+  } finally {
+    cleanup(tmpDir);
+  }
+});
+
+// US-003-AC03: svg_path is the absolute path to the written SVG file
+test('US-003-AC03: svg_path is the absolute path to the written SVG file', () => {
+  const { tmpDir, pngPath } = createTmpPng();
+  try {
+    const result = spawnSync('node', [TRACE_JS, pngPath], { encoding: 'utf8' });
+    assert.strictEqual(result.status, 0);
+    const parsed = JSON.parse(result.stdout.trim());
+    assert.ok(path.isAbsolute(parsed.svg_path), 'svg_path must be an absolute path');
+    assert.ok(fs.existsSync(parsed.svg_path), 'svg_path must point to an existing file');
+    assert.ok(parsed.svg_path.endsWith('.svg'), 'svg_path must end with .svg');
+  } finally {
+    cleanup(tmpDir);
+  }
+});
+
+// US-003-AC04: on error, stdout is empty; error message goes to stderr
+test('US-003-AC04: on error stdout is empty and error message goes to stderr', () => {
+  const result = spawnSync(
+    'node',
+    [TRACE_JS, '/nonexistent/path/no_such_file.png'],
+    { encoding: 'utf8' }
+  );
+  assert.notStrictEqual(result.status, 0, 'Should exit non-zero on error');
+  assert.strictEqual(result.stdout.trim(), '', 'stdout must be empty on error');
+  assert.ok(result.stderr.trim().length > 0, 'Error message must appear on stderr');
+});
+
+// US-003-AC05: lint / syntax check passes
+test('US-003-AC05: node --check trace.js syntax check passes', () => {
+  const result = spawnSync('node', ['--check', TRACE_JS], { encoding: 'utf8' });
+  assert.strictEqual(result.status, 0, `Syntax check failed: ${result.stderr}`);
+});
