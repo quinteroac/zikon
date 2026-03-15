@@ -71,7 +71,7 @@ Exit codes: `0` success · `1` PNG generation error · `2` SVG tracing error · 
 
 - **Python 3.11+** + `diffusers` + `torch` + `accelerate` + `Pillow` — image generation
 - **uv** — dependency management; each script group has its own `pyproject.toml`
-- **Node.js** + `imagetracerjs` — SVG tracing (planned)
+- **Node.js** + `imagetracerjs` — SVG tracing (`scripts/trace/`)
 - No external API calls — all inference runs locally
 
 ## Current iteration

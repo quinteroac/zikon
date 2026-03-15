@@ -1,0 +1,12 @@
+{
+  "name": "trace",
+  "version": "1.0.0",
+  "description": "PNG to SVG tracing script using imagetracerjs",
+  "main": "trace.js",
+  "scripts": {
+    "test": "node --test tests/test_trace.js"
+  },
+  "dependencies": {
+    "imagetracerjs": "^1.2.6"
+  }
+}

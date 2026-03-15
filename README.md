@@ -62,7 +62,8 @@ Each Python script lives in its own `uv` project under `scripts/`:
 
 | Directory | Purpose |
 |---|---|
-| `scripts/generate/` | PNG generation via diffusers |
+| `scripts/generate/` | PNG generation via diffusers (Python + uv) |
+| `scripts/trace/` | PNG → SVG tracing via imagetracerjs (Node.js) |
 
 ### scripts/generate (standalone)
 
