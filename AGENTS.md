@@ -2,7 +2,7 @@
 
 ## Project overview
 
-`logo-creator` is a developer utility that generates web icons and visual assets via a diffusion model pipeline and converts them to SVG. It is designed to be invoked by AI agents mid-task.
+`Zikon` is a developer utility that generates web icons and visual assets via a diffusion model pipeline and converts them to SVG. It is designed to be invoked by AI agents mid-task.
 
 ## Pipeline summary
 
@@ -10,19 +10,39 @@
 prompt → generate.py (diffusers) → PNG → trace.js (imagetracerjs) → SVG + JSON
 ```
 
-## Key files (when built)
+## Script layout
+
+Scripts are grouped under `scripts/`, each as a standalone `uv` project:
+
+| Directory | Purpose |
+|---|---|
+| `scripts/generate/` | PNG generation — Python + diffusers + torch |
+
+> Future scripts: `scripts/trace/` (PNG→SVG), `scripts/orchestrate/` (unified CLI).
+
+## Key files
 
 | File | Purpose |
 |---|---|
-| `generate.py` | Python script — generates PNG from prompt using diffusers |
-| `trace.js` | Node.js script — converts PNG to SVG using imagetracerjs |
-| `generate-icon` | Unified CLI orchestrator for the full pipeline |
-| `.agents/skills/generate-icon/SKILL.md` | Installable skill for Claude Code / Codex |
+| `scripts/generate/generate.py` | CLI entry point — generates PNG from prompt |
+| `scripts/generate/diffusers_backend.py` | Real diffusers+torch pipeline |
+| `scripts/generate/stub_backend.py` | Stdlib-only fallback (no torch required) |
+| `scripts/generate/pyproject.toml` | uv project manifest |
+| `trace.js` | Node.js script — converts PNG to SVG (planned) |
+| `zikon` | Unified CLI orchestrator (planned) |
+| `.agents/skills/zikon/SKILL.md` | Installable skill for Claude Code / Codex (planned) |
 
 ## CLI interface
 
+**scripts/generate (current):**
 ```bash
-generate-icon <prompt> [--model z-image-turbo|sdxl] [--output-dir <path>] [--style <hint>] [--seed <int>]
+cd scripts/generate
+uv run generate.py --prompt <text> --model <z-image-turbo|sdxl|hf-repo/name> --output <path.png> [--steps <int>] [--seed <int>]
+```
+
+**Unified CLI (planned):**
+```bash
+zikon <prompt> [--model z-image-turbo|sdxl] [--output-dir <path>] [--style <hint>] [--seed <int>]
 ```
 
 Output is always a JSON object on stdout:
@@ -49,8 +69,9 @@ Exit codes: `0` success · `1` generation error · `2` tracing error · `3` inva
 
 ## Tech stack
 
-- **Python** + `diffusers` + `torch` — image generation
-- **Node.js** + `imagetracerjs` — SVG tracing
+- **Python 3.11+** + `diffusers` + `torch` + `accelerate` + `Pillow` — image generation
+- **uv** — dependency management; each script group has its own `pyproject.toml`
+- **Node.js** + `imagetracerjs` — SVG tracing (planned)
 - No external API calls — all inference runs locally
 
 ## Current iteration

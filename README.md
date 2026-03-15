@@ -1,4 +1,4 @@
-# logo-creator
+# Zikon
 
 A developer utility for generating icons and visual assets for the web using diffusion models, with automatic PNG → SVG conversion. Designed to be consumed by AI agents (Claude Code, Codex) as an installable skill.
 
@@ -19,10 +19,43 @@ prompt
                     └─▶ output.svg + result.json
 ```
 
-## Usage
+## Scripts
+
+Each script lives in its own `uv` project under `scripts/`:
+
+| Directory | Purpose |
+|---|---|
+| `scripts/generate/` | PNG generation via diffusers |
+
+### scripts/generate
 
 ```bash
-generate-icon "minimalist rocket icon" --model sdxl --output-dir ./assets
+cd scripts/generate
+uv sync                          # install dependencies
+uv run generate.py --prompt "minimalist rocket icon" --model z-image-turbo --output output.png
+```
+
+Optional flags:
+
+```bash
+uv run generate.py \
+  --prompt "minimalist rocket icon" \
+  --model sdxl \
+  --output ./assets/icon.png \
+  --steps 40 \
+  --seed 42
+```
+
+Run tests:
+
+```bash
+uv run python -m unittest discover -s tests
+```
+
+## Usage (future unified CLI)
+
+```bash
+zikon "minimalist rocket icon" --model sdxl --output-dir ./assets
 ```
 
 Output:
@@ -69,7 +102,7 @@ See [ROADMAP.md](./ROADMAP.md) for full detail.
 Once the skill is installed, any compatible agent can invoke:
 
 ```
-/generate-icon prompt="app store icon" model="sdxl" output_dir="./assets"
+/zikon prompt="app store icon" model="sdxl" output_dir="./assets"
 ```
 
 The skill wraps the CLI and returns the structured JSON output directly into the agent's context.
