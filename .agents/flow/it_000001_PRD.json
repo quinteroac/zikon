@@ -1,0 +1,163 @@
+{
+  "goals": [
+    "Provide a reliable CLI entry point for PNG generation from a text prompt.",
+    "Ensure generated images have characteristics suitable for downstream SVG tracing (flat colors, simple shapes, no gradients).",
+    "Emit structured JSON on stdout so agents can parse results programmatically.",
+    "Run fully offline using local model inference via `diffusers` + `torch`."
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Basic PNG generation",
+      "description": "As a developer or AI agent, I want to run `python generate.py --prompt \"minimalist icon\" --model sdxl` so that I receive a valid PNG file at the specified output path.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-001-AC01",
+          "text": "Script accepts `--prompt` (required), `--model` (required), `--output` (optional, defaults to `./output.png`), `--steps` (optional), `--seed` (optional)."
+        },
+        {
+          "id": "US-001-AC02",
+          "text": "A valid PNG file is written to the output path on success."
+        },
+        {
+          "id": "US-001-AC03",
+          "text": "Exit code is `0` on success."
+        },
+        {
+          "id": "US-001-AC04",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "Model selection",
+      "description": "As a developer or AI agent, I want to choose between `z-image-turbo` (quality) and `sdxl` (fast, low memory) so that I can trade off output quality vs. resource usage depending on the context.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-002-AC01",
+          "text": "`--model z-image-turbo` uses the z-image-turbo pipeline (higher quality output)."
+        },
+        {
+          "id": "US-002-AC02",
+          "text": "`--model sdxl` uses the SDXL pipeline (faster, lower memory usage)."
+        },
+        {
+          "id": "US-002-AC03",
+          "text": "`--model <huggingface-repo-or-path>` loads any custom model compatible with the diffusers pipeline, specified as a HuggingFace repo ID (e.g. `myorg/my-model`) or a local directory path."
+        },
+        {
+          "id": "US-002-AC04",
+          "text": "If the custom model fails to load, the script exits with code `1` and prints the error to stderr."
+        },
+        {
+          "id": "US-002-AC05",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Structured JSON output",
+      "description": "As an AI agent, I want the script to print a JSON object to stdout so that I can parse the result programmatically without screen-scraping.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-003-AC01",
+          "text": "On success, stdout contains exactly one valid JSON object with fields: `prompt` (original), `enhanced_prompt` (sanitized), `model`, `seed`, `png_path`."
+        },
+        {
+          "id": "US-003-AC02",
+          "text": "No other text is printed to stdout (logs go to stderr)."
+        },
+        {
+          "id": "US-003-AC03",
+          "text": "The JSON is parseable with `json.loads()` without error."
+        },
+        {
+          "id": "US-003-AC04",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Configurable generation parameters",
+      "description": "As a developer, I want to control `--output`, `--steps`, and `--seed` so that I can reproduce results and direct output to a specific path.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-004-AC01",
+          "text": "`--output <path>` writes the PNG to the given path (creates parent directories if needed)."
+        },
+        {
+          "id": "US-004-AC02",
+          "text": "`--steps <int>` sets the number of diffusion steps (falls back to a sensible model-specific default if omitted)."
+        },
+        {
+          "id": "US-004-AC03",
+          "text": "`--seed <int>` makes generation reproducible; same seed + same prompt produces the same image."
+        },
+        {
+          "id": "US-004-AC04",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Prompt sanitization for SVG output",
+      "description": "As a developer or AI agent, I want the script to automatically enhance the prompt with SVG-friendly descriptors so that the generated PNG is easier to vectorize downstream.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-005-AC01",
+          "text": "Before generation, the script appends (or prepends) terms such as: `flat colors`, `simple shapes`, `no gradients`, `solid background`, `vector art style`, `clean lines`, `icon design` (or equivalent)."
+        },
+        {
+          "id": "US-005-AC02",
+          "text": "The original prompt is preserved as-is in the `prompt` field of the JSON output."
+        },
+        {
+          "id": "US-005-AC03",
+          "text": "The enhanced prompt is exposed in the `enhanced_prompt` field of the JSON output."
+        },
+        {
+          "id": "US-005-AC04",
+          "text": "Enhancement is applied to both models."
+        },
+        {
+          "id": "US-005-AC05",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    }
+  ],
+  "functionalRequirements": [
+    {
+      "id": "FR-1",
+      "description": "** Script is invoked as `python generate.py <args>` with no required setup beyond the Python environment."
+    },
+    {
+      "id": "FR-2",
+      "description": "** All inference runs locally via `diffusers` + `torch`; no external HTTP calls are made."
+    },
+    {
+      "id": "FR-3",
+      "description": "** The script supports built-in `--model` values `z-image-turbo` and `sdxl`, and also accepts a HuggingFace repo ID or a local directory path pointing to a diffusers-compatible model. LoRA checkpoints are not supported. Invalid arguments (e.g. missing `--prompt`) exit with code `3`; an unrecognized model string is treated as a custom model and attempted."
+    },
+    {
+      "id": "FR-4",
+      "description": "** stdout is reserved exclusively for the JSON result; all informational logging goes to stderr."
+    },
+    {
+      "id": "FR-5",
+      "description": "** The prompt enhancement step (US-005) is unconditional and always applied before generation."
+    },
+    {
+      "id": "FR-6",
+      "description": "** On any generation error, the script exits with code `1` and prints the error to stderr."
+    },
+    {
+      "id": "FR-7",
+      "description": "** On invalid arguments, the script exits with code `3` and prints usage to stderr."
+    }
+  ]
+}
