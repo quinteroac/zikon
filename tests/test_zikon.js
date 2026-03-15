@@ -633,3 +633,142 @@ test("US-002-AC07: windows install prints manual PATH instructions", () => {
 
   fs.rmSync(tmpHome, { recursive: true });
 });
+
+// ---------------------------------------------------------------------------
+// US-003-AC01..AC05: custom installation path
+// ---------------------------------------------------------------------------
+
+test("US-003-AC01/02: install --installation-path creates custom layout and does not write ~/.zikon", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const customInstallDir = path.join(tmpHome, "custom", "zikon-install");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+  };
+
+  const result = runZikon(["install", "--installation-path", customInstallDir], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+  assert.ok(fs.existsSync(customInstallDir), "custom install directory was not created");
+  assert.ok(fs.existsSync(path.join(customInstallDir, "cli", "zikon.js")), "cli entry point missing");
+  assert.ok(
+    fs.existsSync(path.join(customInstallDir, "scripts", "generate", "pyproject.toml")),
+    "scripts/generate missing"
+  );
+  assert.ok(
+    fs.existsSync(path.join(customInstallDir, "scripts", "trace", "package.json")),
+    "scripts/trace missing"
+  );
+
+  assert.ok(
+    !fs.existsSync(path.join(tmpHome, ".zikon")),
+    "~/.zikon must not be created when --installation-path is provided"
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-003-AC03: zikon from custom installation path exits 0 and emits valid JSON", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const customInstallDir = path.join(tmpHome, "custom", "zikon-install");
+  const workDir = makeTmpDir();
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+  };
+
+  const installResult = runZikon(["install", "--installation-path", customInstallDir], { env });
+  assert.equal(installResult.status, 0, `stderr: ${installResult.stderr}`);
+
+  const installedCommand = path.join(customInstallDir, "bin", "zikon");
+  const runResult = spawnSync(installedCommand, ["test icon", "--output-dir", workDir], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    cwd: workDir,
+    env,
+  });
+
+  assert.equal(runResult.status, 0, `stderr: ${runResult.stderr}`);
+  const payload = JSON.parse(runResult.stdout.trim());
+  assert.equal(payload.prompt, "test icon");
+  assert.ok(typeof payload.png_path === "string" && payload.png_path.length > 0, "missing png_path");
+  assert.ok(typeof payload.svg_path === "string" && payload.svg_path.length > 0, "missing svg_path");
+  assert.ok(
+    typeof payload.svg_inline === "string" && payload.svg_inline.includes("<svg"),
+    "missing valid svg_inline"
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+  fs.rmSync(workDir, { recursive: true });
+});
+
+test("US-003-AC04: non-writable installation path prints clear error and exits non-zero", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const blockingFilePath = path.join(tmpHome, "not-a-directory");
+  makeFakeBin(fakeBin);
+  fs.writeFileSync(blockingFilePath, "blocking file", "utf8");
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+  };
+
+  const result = runZikon(["install", "--installation-path", blockingFilePath], { env });
+  assert.notEqual(result.status, 0, "install must fail for non-writable/non-creatable path");
+  assert.ok(
+    result.stderr.includes("Installation path") &&
+      result.stderr.includes("not writable or cannot be created"),
+    `stderr should contain clear writable-path error message, got: ${result.stderr}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-003-AC05: custom installation path behavior verified across linux, macOS, and windows shims", () => {
+  const platforms = ["linux", "darwin", "win32"];
+
+  for (const platform of platforms) {
+    const tmpHome = makeTmpDir();
+    const fakeBin = path.join(tmpHome, "fake-bin");
+    const customInstallDir = path.join(tmpHome, "custom", "zikon-install");
+    makeFakeBin(fakeBin);
+
+    const env = {
+      ...process.env,
+      HOME: tmpHome,
+      USERPROFILE: tmpHome,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      ZIKON_TEST_PLATFORM: platform,
+    };
+
+    const result = runZikon(["install", "--installation-path", customInstallDir], { env });
+    assert.equal(result.status, 0, `platform=${platform}; stderr: ${result.stderr}`);
+
+    if (platform === "win32") {
+      assert.ok(
+        fs.existsSync(path.join(customInstallDir, "bin", "zikon.cmd")),
+        "windows install must create zikon.cmd shim"
+      );
+    } else {
+      assert.ok(
+        fs.existsSync(path.join(customInstallDir, "bin", "zikon")),
+        `${platform} install must create unix shim`
+      );
+    }
+
+    fs.rmSync(tmpHome, { recursive: true });
+  }
+});

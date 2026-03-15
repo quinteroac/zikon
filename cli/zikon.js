@@ -79,6 +79,29 @@ function get_install_dir() {
   return path.join(get_home_directory(get_platform()), ".zikon");
 }
 
+function parse_install_arguments(raw_args) {
+  if (raw_args.length === 0) {
+    return { ok: true, installation_path: null };
+  }
+
+  if (raw_args.length === 1 && raw_args[0].startsWith("--installation-path=")) {
+    const value = raw_args[0].slice("--installation-path=".length);
+    if (!value) {
+      return { ok: false };
+    }
+    return { ok: true, installation_path: path.resolve(value) };
+  }
+
+  if (raw_args.length === 2 && raw_args[0] === "--installation-path") {
+    if (!raw_args[1] || raw_args[1].startsWith("--")) {
+      return { ok: false };
+    }
+    return { ok: true, installation_path: path.resolve(raw_args[1]) };
+  }
+
+  return { ok: false };
+}
+
 function write_stderr(message) {
   process.stderr.write(message);
 }
@@ -158,6 +181,19 @@ function write_windows_shim(bin_dir) {
   fs.writeFileSync(shim_path, script, "utf8");
 }
 
+function ensure_writable_install_dir(install_dir) {
+  try {
+    fs.mkdirSync(install_dir, { recursive: true });
+    const probe = path.join(install_dir, `.zikon-write-check-${process.pid}-${Date.now()}`);
+    fs.writeFileSync(probe, "ok", "utf8");
+    fs.unlinkSync(probe);
+  } catch (err) {
+    throw new Error(
+      `Installation path "${install_dir}" is not writable or cannot be created: ${err.message}`
+    );
+  }
+}
+
 function install_runtime(install_dir, platform) {
   const cli_dir = path.join(install_dir, "cli");
   const scripts_dir = path.join(install_dir, "scripts");
@@ -165,7 +201,7 @@ function install_runtime(install_dir, platform) {
   const trace_dir = path.join(scripts_dir, "trace");
   const bin_dir = path.join(install_dir, "bin");
 
-  fs.mkdirSync(install_dir, { recursive: true });
+  ensure_writable_install_dir(install_dir);
   copy_tree(path.join(PROJECT_ROOT, "cli"), cli_dir);
   copy_tree(path.join(PROJECT_ROOT, "scripts", "generate"), generate_dir);
   copy_tree(path.join(PROJECT_ROOT, "scripts", "trace"), trace_dir);
@@ -236,12 +272,13 @@ function pngToSvg(pngPath) {
 
 async function main() {
   if (process.argv[2] === "install") {
-    if (process.argv.length > 3) {
-      write_stderr("Usage: zikon install\n");
+    const parsed_install = parse_install_arguments(process.argv.slice(3));
+    if (!parsed_install.ok) {
+      write_stderr("Usage: zikon install [--installation-path <path>]\n");
       process.exit(EXIT_INVALID_ARGUMENTS);
     }
     try {
-      const install_dir = get_install_dir();
+      const install_dir = parsed_install.installation_path || get_install_dir();
       const platform = get_platform();
       write_stderr(`[zikon] Installing into "${install_dir}"...\n`);
       install_runtime(install_dir, platform);
