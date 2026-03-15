@@ -12,53 +12,53 @@ prompt → generate.py (diffusers) → PNG → trace.js (imagetracerjs) → SVG 
 
 ## Script layout
 
-Scripts are grouped under `scripts/`, each as a standalone `uv` project:
+Python scripts are grouped under `scripts/`, each as a standalone `uv` project. The Node.js orchestrator lives at the project root:
 
-| Directory | Purpose |
+| Path | Purpose |
 |---|---|
 | `scripts/generate/` | PNG generation — Python + diffusers + torch |
-
-> Future scripts: `scripts/trace/` (PNG→SVG), `scripts/orchestrate/` (unified CLI).
+| `scripts/trace/` | PNG → SVG tracing — Node.js + imagetracerjs |
+| `zikon.js` | Unified CLI orchestrator — Node.js + commander |
 
 ## Key files
 
 | File | Purpose |
 |---|---|
-| `scripts/generate/generate.py` | CLI entry point — generates PNG from prompt |
+| `zikon.js` | Unified CLI entry point — orchestrates PNG + SVG pipeline |
+| `package.json` | Node.js project manifest (commander dependency) |
+| `scripts/generate/generate.py` | Python CLI — generates PNG from prompt |
 | `scripts/generate/diffusers_backend.py` | Real diffusers+torch pipeline |
 | `scripts/generate/stub_backend.py` | Stdlib-only fallback (no torch required) |
 | `scripts/generate/pyproject.toml` | uv project manifest |
-| `trace.js` | Node.js script — converts PNG to SVG (planned) |
-| `zikon` | Unified CLI orchestrator (planned) |
 | `.agents/skills/zikon/SKILL.md` | Installable skill for Claude Code / Codex (planned) |
 
 ## CLI interface
 
-**scripts/generate (current):**
+**Unified CLI (current):**
+```bash
+node zikon.js "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>]
+```
+
+**Python generate script (standalone):**
 ```bash
 cd scripts/generate
 uv run generate.py --prompt <text> --model <z-image-turbo|sdxl|hf-repo/name> --output <path.png> [--steps <int>] [--seed <int>]
 ```
 
-**Unified CLI (planned):**
-```bash
-zikon <prompt> [--model z-image-turbo|sdxl] [--output-dir <path>] [--style <hint>] [--seed <int>]
-```
-
-Output is always a JSON object on stdout:
+Output is always a single JSON object on stdout:
 
 ```json
 {
-  "prompt": "...",
-  "model": "...",
-  "seed": 0,
-  "png_path": "...",
-  "svg_path": "...",
-  "svg_inline": "<svg>...</svg>"
+  "prompt": "minimalist rocket icon",
+  "model": "z-image-turbo",
+  "seed": 42,
+  "png_path": "/abs/path/output/minimalist_rocket_icon.png",
+  "svg_path": "/abs/path/output/minimalist_rocket_icon.svg",
+  "svg_inline": "<svg xmlns=\"http://www.w3.org/2000/svg\">...</svg>"
 }
 ```
 
-Exit codes: `0` success · `1` generation error · `2` tracing error · `3` invalid arguments.
+Exit codes: `0` success · `1` PNG generation error · `2` SVG tracing error · `3` invalid arguments.
 
 ## Agent instructions
 

@@ -322,3 +322,80 @@ test("US-003-AC06: node --check syntax validation passes for zikon.js", () => {
   });
   assert.equal(result.status, 0, `Syntax error in zikon.js:\n${result.stderr}`);
 });
+
+// ---------------------------------------------------------------------------
+// US-005-AC01: README.md includes usage example with node zikon.js
+// ---------------------------------------------------------------------------
+
+test("US-005-AC01: README.md includes node zikon.js usage example", () => {
+  const readmePath = path.resolve(__dirname, "..", "README.md");
+  const readme = fs.readFileSync(readmePath, "utf8");
+  assert.ok(readme.includes("node zikon.js"), "README.md must include 'node zikon.js' usage example");
+  assert.ok(readme.includes("--output-dir"), "README.md must include --output-dir flag in usage example");
+  assert.ok(readme.includes('"prompt"'), "README.md must include JSON output schema with prompt field");
+  assert.ok(readme.includes('"svg_path"'), "README.md must include JSON output schema with svg_path field");
+  assert.ok(readme.includes('"svg_inline"'), "README.md must include JSON output schema with svg_inline field");
+});
+
+// ---------------------------------------------------------------------------
+// US-005-AC02: AGENTS.md script layout table includes zikon.js row
+// ---------------------------------------------------------------------------
+
+test("US-005-AC02: AGENTS.md script layout includes zikon.js and updated CLI interface", () => {
+  const agentsPath = path.resolve(__dirname, "..", "AGENTS.md");
+  const agents = fs.readFileSync(agentsPath, "utf8");
+  assert.ok(agents.includes("zikon.js"), "AGENTS.md must include zikon.js in script layout");
+  assert.ok(agents.includes("node zikon.js"), "AGENTS.md must show 'node zikon.js' as the CLI command");
+  assert.ok(agents.includes("--output-dir"), "AGENTS.md CLI interface must include --output-dir flag");
+});
+
+// ---------------------------------------------------------------------------
+// US-005-AC03: AGENTS.md output JSON example shows all six fields
+// ---------------------------------------------------------------------------
+
+test("US-005-AC03: AGENTS.md output JSON example contains all six fields", () => {
+  const agentsPath = path.resolve(__dirname, "..", "AGENTS.md");
+  const agents = fs.readFileSync(agentsPath, "utf8");
+  for (const field of ["prompt", "model", "seed", "png_path", "svg_path", "svg_inline"]) {
+    assert.ok(agents.includes(`"${field}"`), `AGENTS.md JSON example missing field: ${field}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// US-005-AC04: PROJECT_CONTEXT.md documents zikon.js and iteration 3
+// ---------------------------------------------------------------------------
+
+test("US-005-AC04: PROJECT_CONTEXT.md documents zikon.js and iteration 3 capabilities", () => {
+  const ctxPath = path.resolve(__dirname, "..", ".agents", "PROJECT_CONTEXT.md");
+  const ctx = fs.readFileSync(ctxPath, "utf8");
+  assert.ok(ctx.includes("zikon.js"), "PROJECT_CONTEXT.md must document zikon.js");
+  assert.ok(ctx.includes("package.json"), "PROJECT_CONTEXT.md must document package.json");
+  assert.ok(ctx.includes("Iteration 000003"), "PROJECT_CONTEXT.md must list Iteration 000003 capabilities");
+});
+
+// ---------------------------------------------------------------------------
+// US-005-AC05: no outdated references to scripts/orchestrate/
+// ---------------------------------------------------------------------------
+
+test("US-005-AC05: no outdated references to scripts/orchestrate/ in docs", () => {
+  for (const docFile of ["README.md", "AGENTS.md", path.join(".agents", "PROJECT_CONTEXT.md")]) {
+    const fullPath = path.resolve(__dirname, "..", docFile);
+    const content = fs.readFileSync(fullPath, "utf8");
+    assert.ok(
+      !content.includes("scripts/orchestrate"),
+      `${docFile} must not reference scripts/orchestrate/ (outdated)`
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// US-005-AC06: node --check syntax validation passes (typecheck / lint)
+// ---------------------------------------------------------------------------
+
+test("US-005-AC06: node --check syntax validation passes for zikon.js", () => {
+  const result = spawnSync("node", ["--check", ZIKON_JS], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  assert.equal(result.status, 0, `Syntax error in zikon.js:\n${result.stderr}`);
+});

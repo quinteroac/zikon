@@ -9,12 +9,11 @@
 - stdout is reserved exclusively for the JSON result; all logs go to stderr
 
 ## Tech Stack
-- Language: Python 3.11+
-- Runtime: CPython 3.x
-- Frameworks: `diffusers` + `torch` + `accelerate` + `Pillow` for inference; stdlib for stub backend
-- Future: `imagetracerjs` (Node.js) for SVG tracing
-- Package manager: `uv` — each script group has its own `pyproject.toml`
-- Build / tooling: `ruff` (lint), `python3 -m py_compile` (syntax check)
+- Language: Python 3.11+ (generation) + Node.js (tracing, orchestration)
+- Runtime: CPython 3.x; Node.js (LTS)
+- Frameworks: `diffusers` + `torch` + `accelerate` + `Pillow` for inference; stdlib for stub backend; `imagetracerjs` for SVG tracing; `commander` for CLI
+- Package manager: `uv` for Python (each script group has its own `pyproject.toml`); `npm` for Node.js (`package.json` at project root)
+- Build / tooling: `ruff` (lint), `python3 -m py_compile` (syntax check), `node --check` (JS syntax check)
 
 ## Code Standards
 - Style patterns: dataclasses for config objects, typed signatures throughout
@@ -29,17 +28,22 @@
 - Test location: `tests/test_generate.py` inside each script group; tests import the script directly + subprocess calls
 
 ## Product Architecture
-- Pipeline: `prompt → generate.py (diffusers) → PNG → trace.js (imagetracerjs) → SVG + JSON`
-- Current state: PNG generation stub (solid-color PNG derived from SHA-256 hash of inputs)
-- Main components: CLI parser, pipeline config resolver, prompt enhancer, PNG writer
+- Pipeline: `prompt → generate.py (diffusers) → PNG → imagetracerjs → SVG + JSON`
+- Orchestration: `node zikon.js` chains both steps and emits the final JSON
+- Current state: PNG generation uses stub backend (solid-color PNG derived from SHA-256 hash); SVG is traced via imagetracerjs
+- Main components: unified CLI (`zikon.js`), Python PNG generator, imagetracerjs SVG tracer
 
 ## Modular Structure
+- `zikon.js` — Node.js unified CLI orchestrator (commander); chains generate.py → imagetracerjs; emits final JSON
+- `package.json` — Node.js project manifest; lists `commander` as dependency
+- `tests/test_zikon.js` — acceptance-criteria test suite for iteration 3 (US-001..US-005)
 - `scripts/generate/` — standalone `uv` project for PNG generation
   - `generate.py`: CLI entry point — arg parsing, pipeline config, prompt enhancement, image generation, JSON output
   - `stub_backend.py`: stdlib-only backend for tests and minimal environments
   - `diffusers_backend.py`: real `diffusers`+`torch` inference backend (auto-selected when available)
   - `pyproject.toml`: `uv` project manifest with all Python dependencies
-  - `tests/test_generate.py`: acceptance-criteria test suite for all US-001..US-005
+  - `tests/test_generate.py`: acceptance-criteria test suite for iteration 1 (US-001..US-005)
+- `scripts/trace/` — Node.js tracing utilities using `imagetracerjs`
 
 ## Implemented Capabilities
 ### Iteration 000001
@@ -48,3 +52,10 @@
 - **US-003** Structured JSON output — single JSON object on stdout: `prompt`, `enhanced_prompt`, `model`, `seed`, `png_path`
 - **US-004** Configurable generation parameters — `--output` (creates parent dirs), `--steps` (model-specific defaults), `--seed` (deterministic via SHA-256)
 - **US-005** Prompt sanitization — unconditionally appends SVG-friendly terms; original prompt preserved in `prompt` field
+
+### Iteration 000003
+- **US-001** End-to-end pipeline — `node zikon.js "<prompt>" [--model] [--output-dir] [--seed] [--style]`; writes PNG + SVG, emits JSON, exits 0
+- **US-002** Structured JSON output — stdout contains exactly one JSON object with six fields: `prompt`, `model`, `seed`, `png_path`, `svg_path`, `svg_inline`
+- **US-003** Exit codes — `0` success · `1` PNG generation error · `2` SVG tracing error · `3` invalid/missing arguments
+- **US-004** `--style` flag — appends style hint to prompt forwarded to `generate.py`; original `prompt` field unaffected
+- **US-005** Documentation — `README.md`, `AGENTS.md`, and `.agents/PROJECT_CONTEXT.md` updated to reflect the unified CLI
