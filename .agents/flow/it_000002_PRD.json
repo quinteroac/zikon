@@ -1,0 +1,148 @@
+{
+  "goals": [
+    "Produce a valid, well-formed SVG file from any PNG input.",
+    "Emit a structured JSON object to stdout (mirroring `generate.py` conventions).",
+    "Keep the script self-contained under `scripts/trace/` with its own `package.json`.",
+    "Expose configurable tracing parameters via CLI flags."
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Basic PNG → SVG conversion",
+      "description": "As a developer or automated process, I want to run `node trace.js input.png` so that a valid SVG file is produced in the same directory as the input PNG.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-001-AC01",
+          "text": "`node trace.js input.png` exits with code `0` and writes a `.svg` file alongside the input PNG."
+        },
+        {
+          "id": "US-001-AC02",
+          "text": "The output SVG is well-formed XML (parseable without errors)."
+        },
+        {
+          "id": "US-001-AC03",
+          "text": "If the input file does not exist, the script exits with code `2` and prints an error to stderr."
+        },
+        {
+          "id": "US-001-AC04",
+          "text": "Nothing other than the JSON result is written to stdout."
+        },
+        {
+          "id": "US-001-AC05",
+          "text": "Lint / syntax check passes (`node --check trace.js`)."
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "Configurable tracing parameters",
+      "description": "As a developer, I want to control tracing quality via CLI flags so that I can tune the output for different use cases.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-002-AC01",
+          "text": "`--colors <int>` sets the number of palette colors (default: `16`)."
+        },
+        {
+          "id": "US-002-AC02",
+          "text": "`--tolerance <float>` sets the path simplification tolerance (default: `1.0`)."
+        },
+        {
+          "id": "US-002-AC03",
+          "text": "`--scale <float>` sets the output scale factor (default: `1.0`)."
+        },
+        {
+          "id": "US-002-AC04",
+          "text": "Invalid flag values (e.g. non-numeric) cause exit code `3` with an error on stderr."
+        },
+        {
+          "id": "US-002-AC05",
+          "text": "Lint / syntax check passes."
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Structured JSON output",
+      "description": "As an automated process, I want the script to emit a JSON object to stdout so that the orchestrator can parse `svg_path` and `svg_inline` without reading files.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-003-AC01",
+          "text": "On success, stdout contains exactly one JSON object with at least: `png_path`, `svg_path`, `svg_inline`, `colors`, `tolerance`, `scale`."
+        },
+        {
+          "id": "US-003-AC02",
+          "text": "`svg_inline` contains the full SVG markup as a string."
+        },
+        {
+          "id": "US-003-AC03",
+          "text": "`svg_path` is the absolute path to the written SVG file."
+        },
+        {
+          "id": "US-003-AC04",
+          "text": "On error, stdout is empty; the error message goes to stderr."
+        },
+        {
+          "id": "US-003-AC05",
+          "text": "Lint / syntax check passes."
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Documentation update",
+      "description": "As a developer, I want project documentation to reflect the new tracing capability so that future contributors and agents have accurate context.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-004-AC01",
+          "text": "`README.md` is updated to mention `scripts/trace/` and its CLI usage."
+        },
+        {
+          "id": "US-004-AC02",
+          "text": "`AGENTS.md` is updated: `trace.js` row in the script layout table filled in (no longer \"planned\"), and the unified CLI output JSON updated to note that `svg_path` and `svg_inline` are now produced by `trace.js`."
+        },
+        {
+          "id": "US-004-AC03",
+          "text": "`.agents/PROJECT_CONTEXT.md` — `Modular Structure` and `Implemented Capabilities` sections updated to reflect iteration 000002 deliverables."
+        },
+        {
+          "id": "US-004-AC04",
+          "text": "No other documentation files are modified beyond what is listed above."
+        }
+      ]
+    }
+  ],
+  "functionalRequirements": [
+    {
+      "id": "FR-1",
+      "description": "** The script is located at `scripts/trace/trace.js` and has its own `scripts/trace/package.json` declaring `imagetracerjs` as a dependency."
+    },
+    {
+      "id": "FR-2",
+      "description": "** CLI interface: `node trace.js <input.png> [--colors <int>] [--tolerance <float>] [--scale <float>]`."
+    },
+    {
+      "id": "FR-3",
+      "description": "** The SVG output file is written to the same directory as the input PNG, with the same basename and `.svg` extension."
+    },
+    {
+      "id": "FR-4",
+      "description": "** stdout is reserved exclusively for the JSON result; all diagnostic messages go to stderr."
+    },
+    {
+      "id": "FR-5",
+      "description": "** Exit codes: `0` success · `1` tracing error · `2` input file not found · `3` invalid arguments."
+    },
+    {
+      "id": "FR-6",
+      "description": "** The script must work both when called directly (`node trace.js`) and when spawned as a subprocess."
+    },
+    {
+      "id": "FR-7",
+      "description": "** A `tests/` directory under `scripts/trace/` contains a test file (`test_trace.js` or similar) covering all acceptance criteria."
+    },
+    {
+      "id": "FR-8",
+      "description": "** On completion, `README.md`, `AGENTS.md`, and `.agents/PROJECT_CONTEXT.md` are updated to reflect the new `scripts/trace/` module and its capabilities."
+    }
+  ]
+}
