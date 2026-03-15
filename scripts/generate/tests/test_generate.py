@@ -22,6 +22,7 @@ class GenerateScriptTests(unittest.TestCase):
         output: Path,
         seed: int | None = None,
         steps: int | None = None,
+        style: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         command = [
             "python3",
@@ -37,6 +38,8 @@ class GenerateScriptTests(unittest.TestCase):
             command.extend(["--seed", str(seed)])
         if steps is not None:
             command.extend(["--steps", str(steps)])
+        if style is not None:
+            command.extend(["--style", style])
         return subprocess.run(command, check=False, capture_output=True, text=True)
 
     # ------------------------------------------------------------------
@@ -170,15 +173,15 @@ class GenerateScriptTests(unittest.TestCase):
             payload_text = result.stdout.strip()
             decoded, end = json.JSONDecoder().raw_decode(payload_text)
             self.assertEqual(end, len(payload_text))
-            self.assertEqual(
+            self.assertGreaterEqual(
                 set(decoded.keys()),
-                {"prompt", "enhanced_prompt", "model", "seed", "png_path"},
+                {"prompt", "enhanced_prompt", "model", "seed", "png_path", "svg_path", "svg_inline"},
             )
             self.assertEqual(decoded["prompt"], "  minimalist   icon  ")
             self.assertTrue(decoded["enhanced_prompt"].startswith("minimalist icon, "))
             self.assertEqual(decoded["model"], "sdxl")
             self.assertEqual(decoded["seed"], 7)
-            self.assertEqual(decoded["png_path"], str(output))
+            self.assertEqual(decoded["png_path"], str(output.resolve()))
 
     def test_us003_ac02_success_writes_only_json_to_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -245,7 +248,7 @@ class GenerateScriptTests(unittest.TestCase):
             self.assertTrue(output.exists())
             self.assertEqual(output.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
             payload = json.loads(result.stdout)
-            self.assertEqual(payload["png_path"], str(output))
+            self.assertEqual(payload["png_path"], str(output.resolve()))
 
     def test_us004_ac02_steps_uses_model_specific_default_when_omitted(self) -> None:
         self.assertEqual(generate.resolve_steps(None, "z-image-turbo"), 8)
@@ -323,6 +326,80 @@ class GenerateScriptTests(unittest.TestCase):
             self.assertIn("enhanced_prompt", payload)
             self.assertTrue(payload["enhanced_prompt"].startswith("rocket, "))
 
+    # ------------------------------------------------------------------
+    # US-002: Structured JSON output with svg_path and svg_inline
+    # ------------------------------------------------------------------
+
+    def test_us002_ac01_stdout_contains_exactly_one_json_object(self) -> None:
+        """AC-01: stdout is exactly one JSON object with no leading/trailing text."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(prompt="minimalist icon", model="sdxl", output=output)
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload_text = result.stdout.strip()
+            decoded, end = json.JSONDecoder().raw_decode(payload_text)
+            self.assertEqual(end, len(payload_text))
+            self.assertIsInstance(decoded, dict)
+
+    def test_us002_ac02_json_includes_all_six_required_fields(self) -> None:
+        """AC-02: JSON object includes all six required fields with correct types."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(
+                prompt="minimalist icon", model="sdxl", output=output, seed=42
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn("prompt", payload)
+            self.assertIn("model", payload)
+            self.assertIn("seed", payload)
+            self.assertIn("png_path", payload)
+            self.assertIn("svg_path", payload)
+            self.assertIn("svg_inline", payload)
+            self.assertIsInstance(payload["prompt"], str)
+            self.assertIsInstance(payload["model"], str)
+            self.assertIsInstance(payload["seed"], int)
+            self.assertIsInstance(payload["png_path"], str)
+            self.assertIsInstance(payload["svg_path"], str)
+            self.assertIsInstance(payload["svg_inline"], str)
+            # png_path and svg_path must be absolute
+            self.assertTrue(Path(payload["png_path"]).is_absolute())
+            self.assertTrue(Path(payload["svg_path"]).is_absolute())
+
+    def test_us002_ac03_svg_inline_is_file_contents_not_path(self) -> None:
+        """AC-03: svg_inline contains the full SVG markup, not a filesystem path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(prompt="minimalist icon", model="sdxl", output=output)
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            svg_inline = payload["svg_inline"]
+            svg_path = Path(payload["svg_path"])
+            # svg_inline must contain SVG markup (not a path)
+            self.assertIn("<svg", svg_inline)
+            self.assertIn("</svg>", svg_inline)
+            # svg_inline must match what is written to disk
+            self.assertEqual(svg_inline, svg_path.read_text(encoding="utf-8"))
+
+    def test_us002_ac04_lint_and_type_checks_pass(self) -> None:
+        """AC-04: typecheck / lint passes."""
+        if shutil.which("ruff"):
+            lint = subprocess.run(
+                ["ruff", "check", "generate.py", "tests/test_generate.py"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(lint.returncode, 0, msg=lint.stdout + lint.stderr)
+
+        compile_check = subprocess.run(
+            ["python3", "-m", "py_compile", "generate.py"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(compile_check.returncode, 0, msg=compile_check.stderr)
+
     def test_us005_ac04_enhancement_is_applied_to_both_models(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             output_sdxl = Path(tmpdir) / "sdxl.png"
@@ -340,6 +417,84 @@ class GenerateScriptTests(unittest.TestCase):
             payload_sdxl = json.loads(result_sdxl.stdout)
             payload_turbo = json.loads(result_turbo.stdout)
             self.assertEqual(payload_sdxl["enhanced_prompt"], payload_turbo["enhanced_prompt"])
+
+
+    # ------------------------------------------------------------------
+    # US-004 (it_000003): --style flag influences prompt
+    # ------------------------------------------------------------------
+
+    def test_us004_style_ac01_style_hint_appended_to_enhanced_prompt(self) -> None:
+        """AC-01: --style appends the hint to the enhanced prompt in JSON output."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(
+                prompt="rocket",
+                model="sdxl",
+                output=output,
+                style="flat minimalist",
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn("flat minimalist", payload["enhanced_prompt"])
+
+    def test_us004_style_ac01_style_hint_in_enhance_prompt_for_svg_function(self) -> None:
+        """AC-01: enhance_prompt_for_svg appends the style hint."""
+        enhanced = generate.enhance_prompt_for_svg("rocket", "flat minimalist")
+        self.assertIn("flat minimalist", enhanced)
+        self.assertTrue(enhanced.startswith("rocket,"))
+
+    def test_us004_style_ac02_prompt_field_reflects_original_only(self) -> None:
+        """AC-02: the 'prompt' JSON field contains only the original prompt, not the style hint."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(
+                prompt="rocket",
+                model="sdxl",
+                output=output,
+                style="flat minimalist",
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["prompt"], "rocket")
+            self.assertNotIn("flat minimalist", payload["prompt"])
+
+    def test_us004_style_ac03_omitting_style_produces_no_change(self) -> None:
+        """AC-03: omitting --style yields the same enhanced_prompt as the baseline."""
+        enhanced_without_style = generate.enhance_prompt_for_svg("rocket")
+        enhanced_with_none = generate.enhance_prompt_for_svg("rocket", None)
+        self.assertEqual(enhanced_without_style, enhanced_with_none)
+
+    def test_us004_style_ac03_subprocess_without_style_matches_baseline(self) -> None:
+        """AC-03: subprocess run without --style behaves identically to the baseline."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_baseline = Path(tmpdir) / "baseline.png"
+            output_no_style = Path(tmpdir) / "no_style.png"
+            baseline = self._run_generate(prompt="rocket", model="sdxl", output=output_baseline, seed=1)
+            no_style = self._run_generate(prompt="rocket", model="sdxl", output=output_no_style, seed=1)
+            self.assertEqual(baseline.returncode, 0, msg=baseline.stderr)
+            self.assertEqual(no_style.returncode, 0, msg=no_style.stderr)
+            p_baseline = json.loads(baseline.stdout)
+            p_no_style = json.loads(no_style.stdout)
+            self.assertEqual(p_baseline["enhanced_prompt"], p_no_style["enhanced_prompt"])
+
+    def test_us004_style_ac04_lint_and_type_checks_pass(self) -> None:
+        """AC-04: typecheck / lint passes."""
+        if shutil.which("ruff"):
+            lint = subprocess.run(
+                ["ruff", "check", "generate.py", "tests/test_generate.py"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(lint.returncode, 0, msg=lint.stdout + lint.stderr)
+
+        compile_check = subprocess.run(
+            ["python3", "-m", "py_compile", "generate.py"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(compile_check.returncode, 0, msg=compile_check.stderr)
 
 
 if __name__ == "__main__":

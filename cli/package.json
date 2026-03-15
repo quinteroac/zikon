@@ -1,0 +1,9 @@
+{
+  "name": "zikon-cli",
+  "version": "0.1.0",
+  "description": "Unified CLI orchestrator for the logo generation pipeline",
+  "main": "zikon.js",
+  "dependencies": {
+    "commander": "^14.0.0"
+  }
+}

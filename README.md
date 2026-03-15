@@ -19,16 +19,53 @@ prompt
                     └─▶ output.svg + result.json
 ```
 
+## Usage
+
+```bash
+cd cli && npm install            # install commander dependency
+node cli/zikon.js "<prompt>" --model <model> --output-dir <path>
+```
+
+Example:
+
+```bash
+node cli/zikon.js "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+```
+
+All flags:
+
+```bash
+node cli/zikon.js "minimalist rocket icon" \
+  --model sdxl \
+  --output-dir ./assets \
+  --seed 42 \
+  --style "flat minimalist"
+```
+
+Output (stdout):
+```json
+{
+  "prompt": "minimalist rocket icon",
+  "model": "sdxl",
+  "seed": 42,
+  "png_path": "/abs/path/assets/minimalist_rocket_icon.png",
+  "svg_path": "/abs/path/assets/minimalist_rocket_icon.svg",
+  "svg_inline": "<svg>...</svg>"
+}
+```
+
+Exit codes: `0` success · `1` PNG generation error · `2` SVG tracing error · `3` invalid arguments.
+
 ## Scripts
 
-Each script lives in its own project under `scripts/`:
+Each Python script lives in its own `uv` project under `scripts/`:
 
 | Directory | Purpose |
 |---|---|
 | `scripts/generate/` | PNG generation via diffusers (Python + uv) |
 | `scripts/trace/` | PNG → SVG tracing via imagetracerjs (Node.js) |
 
-### scripts/generate
+### scripts/generate (standalone)
 
 ```bash
 cd scripts/generate
@@ -36,64 +73,17 @@ uv sync                          # install dependencies
 uv run generate.py --prompt "minimalist rocket icon" --model z-image-turbo --output output.png
 ```
 
-Optional flags:
+Run Python tests:
 
 ```bash
-uv run generate.py \
-  --prompt "minimalist rocket icon" \
-  --model sdxl \
-  --output ./assets/icon.png \
-  --steps 40 \
-  --seed 42
-```
-
-Run tests:
-
-```bash
+cd scripts/generate
 uv run python -m unittest discover -s tests
 ```
 
-### scripts/trace
+Run Node tests (from project root):
 
 ```bash
-cd scripts/trace
-npm install                      # install dependencies
-node trace.js output.png
-```
-
-Optional flags:
-
-```bash
-node trace.js output.png \
-  --colors 16 \
-  --tolerance 1.0 \
-  --scale 1.0
-```
-
-Outputs a JSON object on stdout with `png_path`, `svg_path`, `svg_inline`, `colors`, `tolerance`, and `scale`.
-
-Run tests:
-
-```bash
-node --test tests/test_trace.js
-```
-
-## Usage (future unified CLI)
-
-```bash
-zikon "minimalist rocket icon" --model sdxl --output-dir ./assets
-```
-
-Output:
-```json
-{
-  "prompt": "minimalist rocket icon",
-  "model": "sdxl",
-  "seed": 42,
-  "png_path": "./assets/output.png",
-  "svg_path": "./assets/output.svg",
-  "svg_inline": "<svg>...</svg>"
-}
+node --test tests/test_zikon.js   # from project root
 ```
 
 ## Stack
@@ -118,7 +108,7 @@ Output:
 |---|---|---|
 | 1 | Python generation pipeline | done |
 | 2 | PNG → SVG conversion | done |
-| 3 | Unified CLI | pending |
+| 3 | Unified CLI | done |
 | 4 | Installable agent skill | pending |
 
 See [ROADMAP.md](./ROADMAP.md) for full detail.

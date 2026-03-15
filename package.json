@@ -1,0 +1,12 @@
+{
+  "name": "logo-creator",
+  "version": "0.1.0",
+  "description": "End-to-end logo generation pipeline",
+  "main": "cli/zikon.js",
+  "scripts": {
+    "test": "node --test tests/test_zikon.js"
+  },
+  "dependencies": {
+    "commander": "^12.0.0"
+  }
+}
