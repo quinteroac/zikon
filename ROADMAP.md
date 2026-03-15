@@ -26,13 +26,13 @@ Goal: integrate `imagetracerjs` to convert the generated PNG to SVG.
 
 ## [ ] Iteration 3 — Unified CLI
 
-Goal: a single `generate-icon` command that orchestrates the full end-to-end pipeline.
+Goal: a single `zikon` command that orchestrates the full end-to-end pipeline.
 
 - [ ] Orchestrator script (bash or Node) that chains `generate.py` → `trace.js`
-- [ ] Interface: `generate-icon <prompt> [--model] [--output-dir] [--style]`
+- [ ] Interface: `zikon <prompt> [--model] [--output-dir] [--style]`
 - [ ] Structured JSON output: `prompt`, `model`, `seed`, `png_path`, `svg_path`, `svg_inline`
 - [ ] Clean error handling and exit codes (critical for agent consumption)
-- [ ] **Done when:** `generate-icon "app logo" --model sdxl --output-dir ./assets` produces PNG + SVG + JSON in one command
+- [ ] **Done when:** `zikon "app logo" --model sdxl --output-dir ./assets` produces PNG + SVG + JSON in one command
 
 ---
 
@@ -44,5 +44,5 @@ Goal: installable `.md` skill for Claude Code and Codex that exposes the pipelin
 - [ ] Skill invokes the Iteration 3 CLI as a subprocess
 - [ ] Installation and usage documentation
 - [ ] Integration test: agent generates an icon mid-task in a real web project
-- [ ] **Done when:** Claude Code can invoke `/generate-icon` and receive a usable SVG without manual steps
+- [ ] **Done when:** Claude Code can invoke `/zikon` and receive a usable SVG without manual steps
 

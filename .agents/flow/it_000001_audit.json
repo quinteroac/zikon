@@ -1,0 +1,47 @@
+{
+  "iteration": "000001",
+  "outcome": "follow_recommendations",
+  "executive_summary": "The iteration is functionally complete as a scaffold. All five user stories and six of seven functional requirements fully comply. FR-2 partially complies: the implementation is a deliberate stdlib stub with no diffusers/torch dependency. The refactor plan targets real inference integration as Priority 1.",
+  "verification_by_fr": [
+    { "frId": "FR-1", "assessment": "comply" },
+    { "frId": "FR-2", "assessment": "partially_comply" },
+    { "frId": "FR-3", "assessment": "comply" },
+    { "frId": "FR-4", "assessment": "comply" },
+    { "frId": "FR-5", "assessment": "comply" },
+    { "frId": "FR-6", "assessment": "comply" },
+    { "frId": "FR-7", "assessment": "comply" }
+  ],
+  "verification_by_us": [
+    { "usId": "US-001", "assessment": "comply" },
+    { "usId": "US-002", "assessment": "comply" },
+    { "usId": "US-003", "assessment": "comply" },
+    { "usId": "US-004", "assessment": "comply" },
+    { "usId": "US-005", "assessment": "comply" }
+  ],
+  "minor_observations": [
+    "No dedicated test_us001_* test methods; US-001 covered implicitly only.",
+    "--steps only affects the stub hash color, not real inference fidelity.",
+    "Top-level exception handler is pragma: no cover; a mock test would close the gap.",
+    "HF_REPO_ID_PATTERN is permissive; needs tightening when real model loading is introduced.",
+    "seed serialises as JSON null when not provided; downstream consumers must handle null vs. integer."
+  ],
+  "conclusions_and_recommendations": "Replace the stdlib stub with a real diffusers + torch pipeline in the next iteration, preserving the existing CLI contract, JSON schema, prompt enhancement logic, and exit-code semantics. Secondary: add explicit US-001 tests, cover the top-level error handler, document null-seed behaviour, and tighten HF_REPO_ID_PATTERN.",
+  "refactor_plan": {
+    "priority_1_real_inference": {
+      "goal": "Replace write_png stub with actual diffusers + torch pipeline (FR-2 gap).",
+      "steps": [
+        "Add diffusers, torch, accelerate to requirements.txt / pyproject.toml.",
+        "Extract current stub into stub_backend.py for use in unit tests without torch.",
+        "Implement diffusers_backend.py: generate_image(enhanced_prompt, pipeline_config, steps, seed) -> PIL.Image.",
+        "Swap in real backend in run(); keep stub as fallback/test shim.",
+        "Guard diffusers import with try/except; emit clear error if dependencies missing."
+      ]
+    },
+    "priority_2_test_hardening": [
+      { "task": "Explicit US-001 tests", "file": "tests/test_generate.py", "action": "Add test_us001_ac01_* … test_us001_ac03_* methods." },
+      { "task": "Error handler coverage", "file": "tests/test_generate.py", "action": "Mock write_png to raise; assert exit code 1 and stderr content." },
+      { "task": "Null-seed documentation", "file": "generate.py", "action": "Document that seed field is null in JSON when not supplied." }
+    ],
+    "priority_3_input_validation": "Tighten HF_REPO_ID_PATTERN to enforce HuggingFace naming constraints (max 96 chars per segment, no leading/trailing hyphens) once real model loading is in place."
+  }
+}

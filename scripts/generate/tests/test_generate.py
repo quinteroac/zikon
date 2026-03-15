@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import generate
@@ -37,6 +38,71 @@ class GenerateScriptTests(unittest.TestCase):
         if steps is not None:
             command.extend(["--steps", str(steps)])
         return subprocess.run(command, check=False, capture_output=True, text=True)
+
+    # ------------------------------------------------------------------
+    # US-001: Basic PNG generation
+    # ------------------------------------------------------------------
+
+    def test_us001_ac01_generates_valid_png_for_valid_arguments(self) -> None:
+        """AC-01: a valid PNG file is written to the requested output path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(
+                prompt="minimalist rocket",
+                model="sdxl",
+                output=output,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertTrue(output.exists())
+            # Valid PNG magic bytes.
+            self.assertEqual(output.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+
+    def test_us001_ac02_exits_zero_on_success(self) -> None:
+        """AC-02: the process exits with code 0 on a successful generation."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(
+                prompt="minimalist rocket",
+                model="sdxl",
+                output=output,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+
+    def test_us001_ac03_missing_prompt_exits_with_code_3(self) -> None:
+        """AC-03: omitting --prompt exits with the reserved code 3."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = subprocess.run(
+                ["python3", "generate.py", "--model", "sdxl", "--output", str(output)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 3)
+            self.assertEqual(result.stdout, "")
+
+    # ------------------------------------------------------------------
+    # Error handler coverage
+    # ------------------------------------------------------------------
+
+    def test_error_handler_returns_exit_code_1_and_prints_to_stderr(self) -> None:
+        """Top-level exception handler emits error to stderr and returns 1."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            with unittest.mock.patch.object(
+                generate.backend, "generate_image", side_effect=RuntimeError("boom")
+            ):
+                stderr_capture = io.StringIO()
+                with contextlib.redirect_stderr(stderr_capture):
+                    code = generate.run(
+                        ["--prompt", "icon", "--model", "sdxl", "--output", str(output)]
+                    )
+            self.assertEqual(code, 1)
+            self.assertIn("boom", stderr_capture.getvalue())
+
+    # ------------------------------------------------------------------
+    # US-002: Model selection (existing tests)
+    # ------------------------------------------------------------------
 
     def test_ac01_model_z_image_turbo_uses_z_image_turbo_pipeline(self) -> None:
         pipeline = generate.load_pipeline_config("z-image-turbo")

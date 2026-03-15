@@ -1,0 +1,70 @@
+# -----------------------------
+# Python
+# -----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Test / coverage / type-check caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.pytype/
+.ruff_cache/
+.hypothesis/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+.env.*
+
+# -----------------------------
+# Jupyter / notebooks
+# -----------------------------
+.ipynb_checkpoints/
+
+# -----------------------------
+# Node.js (planned trace/orchestrate scripts)
+# -----------------------------
+node_modules/
+.npm/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------
+# Generated media outputs
+# -----------------------------
+outputs/
+artifacts/
+assets/generated/
+*.tmp
+*.temp
+
+# Common local outputs from this project flow
+scripts/generate/output*.png
+scripts/generate/output*.svg
+scripts/generate/output*.json
+
+# -----------------------------
+# OS / editor noise
+# -----------------------------
+.DS_Store
+Thumbs.db
+.vscode-test/
