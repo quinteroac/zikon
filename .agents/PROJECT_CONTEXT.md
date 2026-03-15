@@ -9,11 +9,10 @@
 - stdout is reserved exclusively for the JSON result; all logs go to stderr
 
 ## Tech Stack
-- Language: Python 3.11+
-- Runtime: CPython 3.x
-- Frameworks: `diffusers` + `torch` + `accelerate` + `Pillow` for inference; stdlib for stub backend
-- Future: `imagetracerjs` (Node.js) for SVG tracing
-- Package manager: `uv` — each script group has its own `pyproject.toml`
+- Language: Python 3.11+ (generate) · Node.js (trace)
+- Runtime: CPython 3.x · Node.js
+- Frameworks: `diffusers` + `torch` + `accelerate` + `Pillow` for inference; stdlib for stub backend; `imagetracerjs` for SVG tracing
+- Package manager: `uv` for Python script groups; `npm` for Node.js script groups
 - Build / tooling: `ruff` (lint), `python3 -m py_compile` (syntax check)
 
 ## Code Standards
@@ -30,8 +29,8 @@
 
 ## Product Architecture
 - Pipeline: `prompt → generate.py (diffusers) → PNG → trace.js (imagetracerjs) → SVG + JSON`
-- Current state: PNG generation stub (solid-color PNG derived from SHA-256 hash of inputs)
-- Main components: CLI parser, pipeline config resolver, prompt enhancer, PNG writer
+- Current state: PNG generation stub + PNG → SVG tracing operational
+- Main components: CLI parser, pipeline config resolver, prompt enhancer, PNG writer, SVG tracer
 
 ## Modular Structure
 - `scripts/generate/` — standalone `uv` project for PNG generation
@@ -40,6 +39,10 @@
   - `diffusers_backend.py`: real `diffusers`+`torch` inference backend (auto-selected when available)
   - `pyproject.toml`: `uv` project manifest with all Python dependencies
   - `tests/test_generate.py`: acceptance-criteria test suite for all US-001..US-005
+- `scripts/trace/` — standalone `npm` project for PNG → SVG tracing
+  - `trace.js`: CLI entry point — accepts PNG path, traces via imagetracerjs, writes SVG, outputs JSON
+  - `package.json`: npm project manifest with imagetracerjs dependency
+  - `tests/test_trace.js`: acceptance-criteria test suite using Node.js built-in test runner
 
 ## Implemented Capabilities
 ### Iteration 000001
@@ -48,3 +51,9 @@
 - **US-003** Structured JSON output — single JSON object on stdout: `prompt`, `enhanced_prompt`, `model`, `seed`, `png_path`
 - **US-004** Configurable generation parameters — `--output` (creates parent dirs), `--steps` (model-specific defaults), `--seed` (deterministic via SHA-256)
 - **US-005** Prompt sanitization — unconditionally appends SVG-friendly terms; original prompt preserved in `prompt` field
+
+### Iteration 000002
+- **US-001** Basic PNG → SVG conversion — `trace.js <path.png>`; reads PNG, traces via imagetracerjs, writes `.svg` alongside input, outputs JSON with `png_path`, `svg_path`, `svg_inline`
+- **US-002** Configurable tracing parameters — `--colors <int>`, `--tolerance <float>`, `--scale <float>`; invalid values exit 3
+- **US-003** Structured JSON output from trace.js — single JSON object on stdout including `png_path`, `svg_path`, `svg_inline`, `colors`, `tolerance`, `scale`
+- **US-004** Documentation update — README, AGENTS.md, and PROJECT_CONTEXT.md updated to reflect iteration 000002 deliverables

@@ -21,11 +21,12 @@ prompt
 
 ## Scripts
 
-Each script lives in its own `uv` project under `scripts/`:
+Each script lives in its own project under `scripts/`:
 
 | Directory | Purpose |
 |---|---|
-| `scripts/generate/` | PNG generation via diffusers |
+| `scripts/generate/` | PNG generation via diffusers (Python + uv) |
+| `scripts/trace/` | PNG → SVG tracing via imagetracerjs (Node.js) |
 
 ### scripts/generate
 
@@ -50,6 +51,31 @@ Run tests:
 
 ```bash
 uv run python -m unittest discover -s tests
+```
+
+### scripts/trace
+
+```bash
+cd scripts/trace
+npm install                      # install dependencies
+node trace.js output.png
+```
+
+Optional flags:
+
+```bash
+node trace.js output.png \
+  --colors 16 \
+  --tolerance 1.0 \
+  --scale 1.0
+```
+
+Outputs a JSON object on stdout with `png_path`, `svg_path`, `svg_inline`, `colors`, `tolerance`, and `scale`.
+
+Run tests:
+
+```bash
+node --test tests/test_trace.js
 ```
 
 ## Usage (future unified CLI)
@@ -90,8 +116,8 @@ Output:
 
 | Iteration | Goal | Status |
 |---|---|---|
-| 1 | Python generation pipeline | pending |
-| 2 | PNG → SVG conversion | pending |
+| 1 | Python generation pipeline | done |
+| 2 | PNG → SVG conversion | done |
 | 3 | Unified CLI | pending |
 | 4 | Installable agent skill | pending |
 
