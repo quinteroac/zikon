@@ -26,6 +26,15 @@ EXIT_INVALID_ARGUMENTS = 3
 DEFAULT_OUTPUT = "./output.png"
 HF_REPO_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
 DEFAULT_STEPS_BY_PIPELINE = {"z-image-turbo": 8, "sdxl": 40, "custom": 30}
+SVG_FRIENDLY_TERMS = (
+    "flat colors",
+    "simple shapes",
+    "no gradients",
+    "solid background",
+    "vector art style",
+    "clean lines",
+    "icon design",
+)
 
 
 @dataclass(frozen=True)
@@ -103,8 +112,15 @@ def load_custom_pipeline_config(model: str) -> PipelineConfig:
     )
 
 
-def sanitize_prompt(prompt: str) -> str:
+def normalize_prompt(prompt: str) -> str:
     return " ".join(prompt.split())
+
+
+def enhance_prompt_for_svg(prompt: str) -> str:
+    normalized_prompt = normalize_prompt(prompt)
+    if normalized_prompt:
+        return f"{normalized_prompt}, {', '.join(SVG_FRIENDLY_TERMS)}"
+    return ", ".join(SVG_FRIENDLY_TERMS)
 
 
 def run(argv: Sequence[str] | None = None) -> int:
@@ -121,7 +137,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         pipeline = load_pipeline_config(args.model)
-        enhanced_prompt = sanitize_prompt(args.prompt)
+        enhanced_prompt = enhance_prompt_for_svg(args.prompt)
         effective_steps = resolve_steps(args.steps, pipeline.pipeline_name)
         color = seed_to_color(enhanced_prompt, pipeline.model_id, args.seed, effective_steps)
         write_png(output_path, color)

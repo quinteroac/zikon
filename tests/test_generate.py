@@ -109,7 +109,7 @@ class GenerateScriptTests(unittest.TestCase):
                 {"prompt", "enhanced_prompt", "model", "seed", "png_path"},
             )
             self.assertEqual(decoded["prompt"], "  minimalist   icon  ")
-            self.assertEqual(decoded["enhanced_prompt"], "minimalist icon")
+            self.assertTrue(decoded["enhanced_prompt"].startswith("minimalist icon, "))
             self.assertEqual(decoded["model"], "sdxl")
             self.assertEqual(decoded["seed"], 7)
             self.assertEqual(decoded["png_path"], str(output))
@@ -233,6 +233,47 @@ class GenerateScriptTests(unittest.TestCase):
             self.assertEqual(first.returncode, 0, msg=first.stderr)
             self.assertEqual(second.returncode, 0, msg=second.stderr)
             self.assertEqual(output_a.read_bytes(), output_b.read_bytes())
+
+    def test_us005_ac01_enhanced_prompt_includes_svg_friendly_terms(self) -> None:
+        enhanced = generate.enhance_prompt_for_svg("rocket")
+        for term in generate.SVG_FRIENDLY_TERMS:
+            self.assertIn(term, enhanced)
+
+    def test_us005_ac02_original_prompt_is_preserved_in_json_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            original_prompt = "  a   shiny  rocket  "
+            result = self._run_generate(prompt=original_prompt, model="sdxl", output=output)
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["prompt"], original_prompt)
+
+    def test_us005_ac03_enhanced_prompt_is_exposed_in_json_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "icon.png"
+            result = self._run_generate(prompt="rocket", model="sdxl", output=output)
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertIn("enhanced_prompt", payload)
+            self.assertTrue(payload["enhanced_prompt"].startswith("rocket, "))
+
+    def test_us005_ac04_enhancement_is_applied_to_both_models(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_sdxl = Path(tmpdir) / "sdxl.png"
+            output_turbo = Path(tmpdir) / "turbo.png"
+
+            result_sdxl = self._run_generate(prompt="rocket", model="sdxl", output=output_sdxl)
+            result_turbo = self._run_generate(
+                prompt="rocket",
+                model="z-image-turbo",
+                output=output_turbo,
+            )
+
+            self.assertEqual(result_sdxl.returncode, 0, msg=result_sdxl.stderr)
+            self.assertEqual(result_turbo.returncode, 0, msg=result_turbo.stderr)
+            payload_sdxl = json.loads(result_sdxl.stdout)
+            payload_turbo = json.loads(result_turbo.stdout)
+            self.assertEqual(payload_sdxl["enhanced_prompt"], payload_turbo["enhanced_prompt"])
 
 
 if __name__ == "__main__":
