@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import struct
 import sys
@@ -93,6 +94,10 @@ def load_custom_pipeline_config(model: str) -> PipelineConfig:
     )
 
 
+def sanitize_prompt(prompt: str) -> str:
+    return " ".join(prompt.split())
+
+
 def run(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
 
@@ -107,12 +112,21 @@ def run(argv: Sequence[str] | None = None) -> int:
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         pipeline = load_pipeline_config(args.model)
-        color = seed_to_color(args.prompt, pipeline.model_id, args.seed)
+        enhanced_prompt = sanitize_prompt(args.prompt)
+        color = seed_to_color(enhanced_prompt, pipeline.model_id, args.seed)
         write_png(output_path, color)
     except Exception as exc:  # pragma: no cover - defensive top-level handler
         print(str(exc), file=sys.stderr)
         return EXIT_GENERATION_ERROR
 
+    result = {
+        "prompt": args.prompt,
+        "enhanced_prompt": enhanced_prompt,
+        "model": args.model,
+        "seed": args.seed,
+        "png_path": str(output_path),
+    }
+    print(json.dumps(result, separators=(",", ":")))
     return EXIT_SUCCESS
 
 
