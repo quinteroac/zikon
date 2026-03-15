@@ -10,36 +10,34 @@ import generate
 
 
 class GenerateScriptTests(unittest.TestCase):
-    def test_ac01_cli_arguments_and_defaults(self) -> None:
-        parser = generate.build_parser()
+    def test_ac01_model_z_image_turbo_uses_z_image_turbo_pipeline(self) -> None:
+        pipeline = generate.load_pipeline_config("z-image-turbo")
+        self.assertEqual(pipeline.pipeline_name, "z-image-turbo")
+        self.assertEqual(pipeline.model_id, "z-image-turbo")
 
-        args = parser.parse_args(["--prompt", "minimalist icon", "--model", "sdxl"])
-        self.assertEqual(args.prompt, "minimalist icon")
-        self.assertEqual(args.model, "sdxl")
-        self.assertEqual(args.output, "./output.png")
-        self.assertIsNone(args.steps)
-        self.assertIsNone(args.seed)
+    def test_ac02_model_sdxl_uses_sdxl_pipeline(self) -> None:
+        pipeline = generate.load_pipeline_config("sdxl")
+        self.assertEqual(pipeline.pipeline_name, "sdxl")
+        self.assertEqual(pipeline.model_id, "sdxl")
 
-    def test_ac02_writes_valid_png_to_output_path(self) -> None:
+    def test_ac03_custom_model_accepts_repo_id_and_local_directory_path(self) -> None:
+        repo_pipeline = generate.load_pipeline_config("myorg/my-model")
+        self.assertEqual(repo_pipeline.pipeline_name, "custom")
+        self.assertEqual(repo_pipeline.model_id, "myorg/my-model")
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            output = Path(tmpdir) / "nested" / "icon.png"
-            code = generate.run(
-                [
-                    "--prompt",
-                    "minimalist icon",
-                    "--model",
-                    "sdxl",
-                    "--output",
-                    str(output),
-                ]
-            )
+            local_pipeline = generate.load_pipeline_config(tmpdir)
+            self.assertEqual(local_pipeline.pipeline_name, "custom")
+            self.assertEqual(local_pipeline.model_id, str(Path(tmpdir).resolve()))
 
+            output = Path(tmpdir) / "nested" / "icon.png"
+            code = generate.run(["--prompt", "minimalist icon", "--model", tmpdir, "--output", str(output)])
             self.assertEqual(code, 0)
             self.assertTrue(output.exists())
             self.assertGreater(output.stat().st_size, 8)
             self.assertEqual(output.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
 
-    def test_ac03_exit_code_zero_on_success(self) -> None:
+    def test_ac04_invalid_custom_model_exits_with_code_1_and_prints_stderr(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir) / "icon.png"
             result = subprocess.run(
@@ -49,7 +47,7 @@ class GenerateScriptTests(unittest.TestCase):
                     "--prompt",
                     "minimalist icon",
                     "--model",
-                    "sdxl",
+                    "not-a-valid-model-id",
                     "--output",
                     str(output),
                 ],
@@ -58,11 +56,12 @@ class GenerateScriptTests(unittest.TestCase):
                 text=True,
             )
 
-            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.returncode, 1)
             self.assertEqual(result.stdout, "")
-            self.assertTrue(output.exists())
+            self.assertIn("Custom model must be a HuggingFace repo id", result.stderr)
+            self.assertFalse(output.exists())
 
-    def test_ac04_lint_and_type_checks_pass(self) -> None:
+    def test_ac05_lint_and_type_checks_pass(self) -> None:
         # Lint with ruff when available.
         if shutil.which("ruff"):
             lint = subprocess.run(

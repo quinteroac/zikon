@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import struct
 import sys
 import zlib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
@@ -21,6 +23,13 @@ EXIT_GENERATION_ERROR = 1
 EXIT_INVALID_ARGUMENTS = 3
 
 DEFAULT_OUTPUT = "./output.png"
+HF_REPO_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+@dataclass(frozen=True)
+class PipelineConfig:
+    model_id: str
+    pipeline_name: str
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,6 +74,25 @@ def seed_to_color(prompt: str, model: str, seed: int | None) -> tuple[int, int, 
     return digest[0], digest[1], digest[2]
 
 
+def load_pipeline_config(model: str) -> PipelineConfig:
+    if model == "z-image-turbo":
+        return PipelineConfig(model_id=model, pipeline_name="z-image-turbo")
+    if model == "sdxl":
+        return PipelineConfig(model_id=model, pipeline_name="sdxl")
+    return load_custom_pipeline_config(model)
+
+
+def load_custom_pipeline_config(model: str) -> PipelineConfig:
+    candidate_path = Path(model).expanduser()
+    if candidate_path.is_dir():
+        return PipelineConfig(model_id=str(candidate_path.resolve()), pipeline_name="custom")
+    if HF_REPO_ID_PATTERN.match(model):
+        return PipelineConfig(model_id=model, pipeline_name="custom")
+    raise ValueError(
+        "Custom model must be a HuggingFace repo id like 'org/name' or an existing local directory."
+    )
+
+
 def run(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
 
@@ -78,7 +106,8 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        color = seed_to_color(args.prompt, args.model, args.seed)
+        pipeline = load_pipeline_config(args.model)
+        color = seed_to_color(args.prompt, pipeline.model_id, args.seed)
         write_png(output_path, color)
     except Exception as exc:  # pragma: no cover - defensive top-level handler
         print(str(exc), file=sys.stderr)
