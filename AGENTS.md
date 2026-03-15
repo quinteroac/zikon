@@ -12,7 +12,7 @@ prompt → generate.py (diffusers) → PNG → trace.js (imagetracerjs) → SVG 
 
 ## Script layout
 
-Scripts are grouped under `scripts/`, each as a standalone `uv` project:
+Scripts are grouped under `scripts/`, each as a standalone project:
 
 | Directory | Purpose |
 |---|---|

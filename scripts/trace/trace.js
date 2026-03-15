@@ -19,7 +19,7 @@ function parseArgs(argv) {
     } else if (arg === '--tolerance') {
       const raw = argv[++i];
       const val = parseFloat(raw);
-      if (!raw || isNaN(val)) {
+      if (!raw || isNaN(val) || !/^-?\d+(\.\d+)?$/.test(raw.trim())) {
         process.stderr.write(`Error: --tolerance requires a numeric value, got: ${raw}\n`);
         process.exit(3);
       }
@@ -27,7 +27,7 @@ function parseArgs(argv) {
     } else if (arg === '--scale') {
       const raw = argv[++i];
       const val = parseFloat(raw);
-      if (!raw || isNaN(val)) {
+      if (!raw || isNaN(val) || !/^-?\d+(\.\d+)?$/.test(raw.trim())) {
         process.stderr.write(`Error: --scale requires a numeric value, got: ${raw}\n`);
         process.exit(3);
       }

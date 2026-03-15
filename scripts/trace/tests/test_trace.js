@@ -49,18 +49,23 @@ test('AC02: output SVG is well-formed XML', () => {
     const svgPath = path.join(path.dirname(pngPath), 'test.svg');
     const svgContent = fs.readFileSync(svgPath, 'utf8');
     assert.ok(svgContent.trim().length > 0, 'SVG file should not be empty');
+    // Validate using Node's built-in XML parser via the DOMParser-equivalent
+    // available through the experimental --experimental-vm-modules or via a
+    // subprocess invoking the xmllint-style check. Use a strict tag-balance
+    // heuristic: parse with regex to count open/close svg tags and verify
+    // every opened tag has a corresponding closer at the document level.
+    const openTagCount = (svgContent.match(/<svg[\s>]/g) || []).length;
+    const closeTagCount = (svgContent.match(/<\/svg>/g) || []).length;
+    assert.ok(openTagCount >= 1, 'SVG must contain at least one <svg> opening tag');
+    assert.strictEqual(openTagCount, closeTagCount, 'Every <svg> opening tag must have a matching </svg> closing tag');
+    // Confirm the document starts with the SVG root element (after optional XML declaration)
+    const trimmed = svgContent.trim();
     assert.ok(
-      svgContent.includes('<svg'),
-      'SVG should contain opening <svg tag'
+      /^(<\?xml[^>]*\?>[\s\S]*?)?<svg[\s>]/i.test(trimmed),
+      'SVG document must begin with optional XML declaration followed by <svg> root element'
     );
-    assert.ok(
-      svgContent.includes('</svg>'),
-      'SVG should contain closing </svg> tag'
-    );
-    // Opening tag must precede closing tag
-    const openIdx = svgContent.indexOf('<svg');
-    const closeIdx = svgContent.lastIndexOf('</svg>');
-    assert.ok(openIdx < closeIdx, '<svg> must appear before </svg>');
+    // Confirm the document ends with the SVG closing tag
+    assert.ok(trimmed.endsWith('</svg>'), 'SVG document must end with </svg>');
   } finally {
     cleanup(tmpDir);
   }
