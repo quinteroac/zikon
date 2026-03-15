@@ -5,7 +5,7 @@
  * zikon.js — end-to-end logo pipeline
  *
  * Usage:
- *   node zikon.js "<prompt>" [--model <id>] [--output-dir <dir>] [--seed <int>] [--style <str>]
+ *   node cli/zikon.js "<prompt>" [--model <id>] [--output-dir <dir>] [--seed <int>] [--style <str>]
  *
  * stdout  : single JSON object (prompt, model, seed, png_path, svg_path, svg_inline)
  * stderr  : progress and debug output
@@ -23,10 +23,11 @@ const { Command } = require("commander");
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
-const SCRIPT_DIR = __dirname;
-const GENERATE_PY = path.join(SCRIPT_DIR, "scripts", "generate", "generate.py");
+const PROJECT_ROOT = path.join(__dirname, "..");
+const GENERATE_PY = path.join(PROJECT_ROOT, "scripts", "generate", "generate.py");
+const GENERATE_PROJECT = path.join(PROJECT_ROOT, "scripts", "generate");
 const IMAGETRACER_JS = path.join(
-  SCRIPT_DIR,
+  PROJECT_ROOT,
   "scripts",
   "trace",
   "node_modules",
@@ -34,7 +35,7 @@ const IMAGETRACER_JS = path.join(
   "imagetracer_v1.2.6.js"
 );
 const PNGREADER_JS = path.join(
-  SCRIPT_DIR,
+  PROJECT_ROOT,
   "scripts",
   "trace",
   "node_modules",
@@ -126,10 +127,13 @@ async function main() {
   const pngPath = path.join(outputDir, `${safeName}.png`);
   const svgPath = path.join(outputDir, `${safeName}.svg`);
 
+  // Build the effective prompt: append style hint if provided (US-004)
+  const effectivePrompt = opts.style ? `${prompt}, ${opts.style}` : prompt;
+
   // Build generate.py invocation
   const pyArgs = [
     GENERATE_PY,
-    "--prompt", prompt,
+    "--prompt", effectivePrompt,
     "--model", opts.model,
     "--output", pngPath,
   ];
@@ -138,7 +142,7 @@ async function main() {
   }
 
   process.stderr.write("[zikon] Generating PNG...\n");
-  const genResult = spawnSync("python3", pyArgs, {
+  const genResult = spawnSync("uv", ["run", "--project", GENERATE_PROJECT, ...pyArgs], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });

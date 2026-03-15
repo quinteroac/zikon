@@ -29,13 +29,13 @@
 
 ## Product Architecture
 - Pipeline: `prompt → generate.py (diffusers) → PNG → imagetracerjs → SVG + JSON`
-- Orchestration: `node zikon.js` chains both steps and emits the final JSON
+- Orchestration: `node cli/zikon.js` chains both steps and emits the final JSON
 - Current state: PNG generation uses stub backend (solid-color PNG derived from SHA-256 hash); SVG is traced via imagetracerjs
-- Main components: unified CLI (`zikon.js`), Python PNG generator, imagetracerjs SVG tracer
+- Main components: unified CLI (`cli/zikon.js`), Python PNG generator, imagetracerjs SVG tracer
 
 ## Modular Structure
-- `zikon.js` — Node.js unified CLI orchestrator (commander); chains generate.py → imagetracerjs; emits final JSON
-- `package.json` — Node.js project manifest; lists `commander` as dependency
+- `cli/zikon.js` — Node.js unified CLI orchestrator (commander); chains generate.py → imagetracerjs; emits final JSON
+- `cli/package.json` — Node.js project manifest; lists `commander` v14 as dependency
 - `tests/test_zikon.js` — acceptance-criteria test suite for iteration 3 (US-001..US-005)
 - `scripts/generate/` — standalone `uv` project for PNG generation
   - `generate.py`: CLI entry point — arg parsing, pipeline config, prompt enhancement, image generation, JSON output

@@ -14,7 +14,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const ZIKON_JS = path.resolve(__dirname, "..", "zikon.js");
+const ZIKON_JS = path.resolve(__dirname, "..", "cli", "zikon.js");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -241,7 +241,7 @@ test("US-003-AC03: exits 2 when SVG tracing fails", () => {
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { Command } = require(path.resolve(${JSON.stringify(path.join(__dirname, "..", "node_modules", "commander"))}));
+const { Command } = require(path.resolve(${JSON.stringify(path.join(__dirname, "..", "cli", "node_modules", "commander"))}));
 
 // Write a fake PNG (invalid data) to trigger tracer failure
 const pngPath = path.join(${JSON.stringify(tmpDir)}, "fake.png");
@@ -256,7 +256,7 @@ process.exit(2);
   assert.equal(result.status, 2, "expected helper to exit 2");
 
   // Also verify that the source of zikon.js uses process.exit(2) for SVG tracing errors
-  const zikonSrc = fs.readFileSync(path.resolve(__dirname, "..", "zikon.js"), "utf8");
+  const zikonSrc = fs.readFileSync(path.resolve(__dirname, "..", "cli", "zikon.js"), "utf8");
   assert.ok(zikonSrc.includes("process.exit(2)"), "zikon.js must call process.exit(2) for SVG tracing errors");
 
   fs.rmSync(tmpDir, { recursive: true });
@@ -330,7 +330,7 @@ test("US-003-AC06: node --check syntax validation passes for zikon.js", () => {
 test("US-005-AC01: README.md includes node zikon.js usage example", () => {
   const readmePath = path.resolve(__dirname, "..", "README.md");
   const readme = fs.readFileSync(readmePath, "utf8");
-  assert.ok(readme.includes("node zikon.js"), "README.md must include 'node zikon.js' usage example");
+  assert.ok(readme.includes("node cli/zikon.js"), "README.md must include 'node cli/zikon.js' usage example");
   assert.ok(readme.includes("--output-dir"), "README.md must include --output-dir flag in usage example");
   assert.ok(readme.includes('"prompt"'), "README.md must include JSON output schema with prompt field");
   assert.ok(readme.includes('"svg_path"'), "README.md must include JSON output schema with svg_path field");
@@ -345,7 +345,7 @@ test("US-005-AC02: AGENTS.md script layout includes zikon.js and updated CLI int
   const agentsPath = path.resolve(__dirname, "..", "AGENTS.md");
   const agents = fs.readFileSync(agentsPath, "utf8");
   assert.ok(agents.includes("zikon.js"), "AGENTS.md must include zikon.js in script layout");
-  assert.ok(agents.includes("node zikon.js"), "AGENTS.md must show 'node zikon.js' as the CLI command");
+  assert.ok(agents.includes("node cli/zikon.js"), "AGENTS.md must show 'node cli/zikon.js' as the CLI command");
   assert.ok(agents.includes("--output-dir"), "AGENTS.md CLI interface must include --output-dir flag");
 });
 

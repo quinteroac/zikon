@@ -12,20 +12,20 @@ prompt → generate.py (diffusers) → PNG → trace.js (imagetracerjs) → SVG 
 
 ## Script layout
 
-Python scripts are grouped under `scripts/`, each as a standalone `uv` project. The Node.js orchestrator lives at the project root:
+Python scripts are grouped under `scripts/`, each as a standalone `uv` project. The Node.js orchestrator lives under `cli/`:
 
 | Path | Purpose |
 |---|---|
 | `scripts/generate/` | PNG generation — Python + diffusers + torch |
 | `scripts/trace/` | PNG → SVG tracing — Node.js + imagetracerjs |
-| `zikon.js` | Unified CLI orchestrator — Node.js + commander |
+| `cli/` | Unified CLI orchestrator — Node.js + commander |
 
 ## Key files
 
 | File | Purpose |
 |---|---|
-| `zikon.js` | Unified CLI entry point — orchestrates PNG + SVG pipeline |
-| `package.json` | Node.js project manifest (commander dependency) |
+| `cli/zikon.js` | Unified CLI entry point — orchestrates PNG + SVG pipeline |
+| `cli/package.json` | Node.js project manifest (commander dependency) |
 | `scripts/generate/generate.py` | Python CLI — generates PNG from prompt |
 | `scripts/generate/diffusers_backend.py` | Real diffusers+torch pipeline |
 | `scripts/generate/stub_backend.py` | Stdlib-only fallback (no torch required) |
@@ -36,7 +36,7 @@ Python scripts are grouped under `scripts/`, each as a standalone `uv` project. 
 
 **Unified CLI (current):**
 ```bash
-node zikon.js "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>]
+node cli/zikon.js "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>]
 ```
 
 **Python generate script (standalone):**

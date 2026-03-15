@@ -22,20 +22,20 @@ prompt
 ## Usage
 
 ```bash
-npm install                      # install commander dependency
-node zikon.js "<prompt>" --model <model> --output-dir <path>
+cd cli && npm install            # install commander dependency
+node cli/zikon.js "<prompt>" --model <model> --output-dir <path>
 ```
 
 Example:
 
 ```bash
-node zikon.js "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+node cli/zikon.js "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
 ```
 
 All flags:
 
 ```bash
-node zikon.js "minimalist rocket icon" \
+node cli/zikon.js "minimalist rocket icon" \
   --model sdxl \
   --output-dir ./assets \
   --seed 42 \
@@ -82,7 +82,7 @@ uv run python -m unittest discover -s tests
 Run Node tests (from project root):
 
 ```bash
-node --test tests/test_zikon.js
+node --test tests/test_zikon.js   # from project root
 ```
 
 ## Stack
