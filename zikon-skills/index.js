@@ -38,19 +38,20 @@ function run(params = {}) {
   if (style)      args.push("--style", style);
   if (output_dir) args.push("--output-dir", output_dir);
 
-  // Resolve invocation: prefer local repo CLI (one level up from zikon-skills/),
-  // fall back to the installed `zikon` shim created by `zikon install`.
-  const localCli = path.resolve(__dirname, "..", "cli", "zikon.js");
+  // Resolve invocation: prefer the installed `zikon` shim created by `zikon install`,
+  // fall back to the local repo CLI (one level up from zikon-skills/).
+  const zikonInstalled = spawnSync("which", ["zikon"], { encoding: "utf8" });
   let result;
 
-  if (fs.existsSync(localCli)) {
-    result = spawnSync("node", [localCli, ...args], {
+  if (zikonInstalled.status === 0 && zikonInstalled.stdout.trim()) {
+    result = spawnSync("zikon", args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: 20 * 1024 * 1024,
     });
   } else {
-    result = spawnSync("zikon", args, {
+    const localCli = path.resolve(__dirname, "..", "cli", "zikon.js");
+    result = spawnSync("node", [localCli, ...args], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: 20 * 1024 * 1024,
