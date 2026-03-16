@@ -52,16 +52,16 @@ Goal: cross-platform build package using Bun that ships the CLI and scripts with
 
 ---
 
-## [ ] Iteration 5 — Installable Agent Skill
+## [X] Iteration 5 — Installable Agent Skill
 
 Goal: installable `.md` skill for AI Agents that exposes the pipeline as an agent tool.
 
-- [ ] Define skill interface: typed parameters (`prompt`, `model`, `style`, `output_dir`)
-- [ ] AI Agents uses skills to invoke the zikon to create icons or web assets
-- [ ] Installation and usage documentation
-- [ ] Zikon Skills can be installed using `npx skills add` from Vercel Labs
-- [ ] Integration test: agent generates an icon mid-task in a real web project
-- [ ] **Done when:** AI Agents can invoke `/zikon` and receive a usable SVG without manual steps
+- [X] Define skill interface: typed parameters (`prompt`, `model`, `style`, `output_dir`)
+- [X] AI Agents uses skills to invoke the zikon to create icons or web assets
+- [X] Installation and usage documentation
+- [X] Zikon Skills can be installed using `npx skills add https://github.com/quinteroac/zikon/zikon-skills`
+- [X] Integration test: agent generates an icon mid-task in a real web project
+- [X] **Done when:** AI Agents can invoke `/zikon` and receive a usable SVG without manual steps
 
 ---
 

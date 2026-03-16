@@ -1,7 +1,8 @@
 "use strict";
 
 /**
- * Zikon skill entry point.
+ * Zikon skill entry point — installable via:
+ *   npx skills add https://github.com/quinteroac/zikon/zikon-skills
  *
  * Exports the skill definition so that Vercel Labs `@vercel/skill` tooling
  * can discover, install, and register the skill in an AI agent environment.
@@ -37,8 +38,9 @@ function run(params = {}) {
   if (style)      args.push("--style", style);
   if (output_dir) args.push("--output-dir", output_dir);
 
-  // Resolve invocation: prefer local repo CLI, fall back to installed zikon shim.
-  const localCli = path.resolve(__dirname, "..", "..", "cli", "zikon.js");
+  // Resolve invocation: prefer local repo CLI (one level up from zikon-skills/),
+  // fall back to the installed `zikon` shim created by `zikon install`.
+  const localCli = path.resolve(__dirname, "..", "cli", "zikon.js");
   let result;
 
   if (fs.existsSync(localCli)) {

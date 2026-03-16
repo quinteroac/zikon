@@ -30,7 +30,7 @@ Python scripts are grouped under `scripts/`, each as a standalone `uv` project. 
 | `scripts/generate/diffusers_backend.py` | Real diffusers+torch pipeline |
 | `scripts/generate/stub_backend.py` | Stdlib-only fallback (no torch required) |
 | `scripts/generate/pyproject.toml` | uv project manifest |
-| `.agents/skills/zikon/SKILL.md` | Installable skill for Claude Code / compatible agents — install with `npx skills add zikon`, invoke with `/zikon "<prompt>"` |
+| `zikon-skills/SKILL.md` | Installable skill for Claude Code / compatible agents — install with `npx skills add https://github.com/quinteroac/zikon/zikon-skills`, invoke with `/zikon "<prompt>"` |
 
 ## CLI interface
 
@@ -81,10 +81,10 @@ Exit codes: `0` success · `1` PNG generation error · `2` SVG tracing error · 
 
 ## Skill installation and invocation
 
-The Zikon skill is defined in `.agents/skills/zikon/SKILL.md`. Install it with:
+The Zikon skill is defined in `zikon-skills/SKILL.md`. Install it with:
 
 ```bash
-npx skills add zikon
+npx skills add https://github.com/quinteroac/zikon/zikon-skills
 ```
 
 Then invoke it from any compatible agent:

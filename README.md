@@ -231,7 +231,7 @@ Zikon ships as an installable skill for Claude Code and compatible agents.
 ### Install the skill
 
 ```bash
-npx skills add zikon
+npx skills add https://github.com/quinteroac/zikon/zikon-skills
 ```
 
 ### Invoke the skill
@@ -248,7 +248,7 @@ With optional parameters:
 /zikon "rocket icon" --model sdxl --style flat --output-dir ./assets/icons
 ```
 
-The skill wraps the CLI and returns the structured JSON output directly into the agent's context. See `.agents/skills/zikon/SKILL.md` for the full parameter reference and output contract.
+The skill wraps the CLI and returns the structured JSON output directly into the agent's context. See `zikon-skills/SKILL.md` for the full parameter reference and output contract.
 
 ## Agent usage
 
