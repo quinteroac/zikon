@@ -220,7 +220,7 @@ node --test tests/test_zikon.js   # from project root
 | 1 | Python generation pipeline | done |
 | 2 | PNG → SVG conversion | done |
 | 3 | Unified CLI | done |
-| 4 | Build package + installer | in progress |
+| 4 | Build package + installer | done |
 
 See [ROADMAP.md](./ROADMAP.md) for full detail.
 
