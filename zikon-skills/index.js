@@ -50,7 +50,8 @@ function run(params = {}) {
 
   // Resolve invocation: prefer the installed `zikon` shim created by `zikon install`,
   // fall back to the local repo CLI (one level up from zikon-skills/).
-  const zikonInstalled = spawnSync("which", ["zikon"], { encoding: "utf8" });
+  const whichCmd = process.platform === "win32" ? "where" : "which";
+  const zikonInstalled = spawnSync(whichCmd, ["zikon"], { encoding: "utf8" });
   let result;
 
   if (zikonInstalled.status === 0 && zikonInstalled.stdout.trim()) {
