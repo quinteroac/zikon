@@ -1,0 +1,70 @@
+{
+  "entries": [
+    {
+      "use_case_id": "US-001",
+      "status": "completed",
+      "attempt_count": 1,
+      "last_agent_exit_code": 0,
+      "quality_checks": [],
+      "last_error_summary": "",
+      "updated_at": "2026-03-15T23:04:35.574Z",
+      "audit_artifact_path": ".agents/flow/it_000004_audit.json",
+      "refactor_report_path": ".agents/flow/it_000004_refactor-report.md"
+    },
+    {
+      "use_case_id": "US-002",
+      "status": "completed",
+      "attempt_count": 1,
+      "last_agent_exit_code": 0,
+      "quality_checks": [],
+      "last_error_summary": "",
+      "updated_at": "2026-03-15T23:15:12.249Z",
+      "audit_artifact_path": ".agents/flow/it_000004_audit.json",
+      "refactor_report_path": ".agents/flow/it_000004_refactor-report.md"
+    },
+    {
+      "use_case_id": "US-003",
+      "status": "completed",
+      "attempt_count": 1,
+      "last_agent_exit_code": 0,
+      "quality_checks": [],
+      "last_error_summary": "",
+      "updated_at": "2026-03-15T23:20:29.607Z",
+      "audit_artifact_path": ".agents/flow/it_000004_audit.json",
+      "refactor_report_path": ".agents/flow/it_000004_refactor-report.md"
+    },
+    {
+      "use_case_id": "US-004",
+      "status": "completed",
+      "attempt_count": 1,
+      "last_agent_exit_code": 0,
+      "quality_checks": [],
+      "last_error_summary": "",
+      "updated_at": "2026-03-15T23:28:06.483Z",
+      "audit_artifact_path": ".agents/flow/it_000004_audit.json",
+      "refactor_report_path": ".agents/flow/it_000004_refactor-report.md"
+    },
+    {
+      "use_case_id": "US-005",
+      "status": "completed",
+      "attempt_count": 1,
+      "last_agent_exit_code": 0,
+      "quality_checks": [],
+      "last_error_summary": "",
+      "updated_at": "2026-03-15T23:34:18.310Z",
+      "audit_artifact_path": ".agents/flow/it_000004_audit.json",
+      "refactor_report_path": ".agents/flow/it_000004_refactor-report.md"
+    },
+    {
+      "use_case_id": "US-006",
+      "status": "completed",
+      "attempt_count": 1,
+      "last_agent_exit_code": 0,
+      "quality_checks": [],
+      "last_error_summary": "",
+      "updated_at": "2026-03-15T23:39:29.528Z",
+      "audit_artifact_path": ".agents/flow/it_000004_audit.json",
+      "refactor_report_path": ".agents/flow/it_000004_refactor-report.md"
+    }
+  ]
+}

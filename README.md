@@ -1,6 +1,6 @@
 # Zikon
 
-A developer utility for generating icons and visual assets for the web using diffusion models, with automatic PNG → SVG conversion. Designed to be consumed by AI agents (Claude Code, Codex) as an installable skill.
+A developer utility for generating icons and visual assets for the web using diffusion models, with automatic PNG → SVG conversion. Designed to be consumed by AI agents and installed as a reusable local CLI.
 
 ## What it does
 
@@ -19,7 +19,117 @@ prompt
                     └─▶ output.svg + result.json
 ```
 
+## Installation
+
+Iteration 4 adds an installer flow to the CLI: `zikon install`. In the repository, the installer is currently invoked through `node cli/zikon.js install`; the cross-platform Bun build is the packaging target for this iteration.
+
+### Prerequisites
+
+Install these tools before running Zikon:
+
+| OS | Bun | Node.js | uv |
+|---|---|---|---|
+| Linux | [bun.sh installation docs](https://bun.sh/docs/installation) | [Node.js Linux install docs](https://nodejs.org/en/download/package-manager) | [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) |
+| macOS | [bun.sh installation docs](https://bun.sh/docs/installation) | [Node.js macOS installers](https://nodejs.org/en/download) | [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) |
+| Windows | [bun.sh installation docs](https://bun.sh/docs/installation) | [Node.js Windows installers](https://nodejs.org/en/download) | [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) |
+
+### Linux / macOS — binary release
+
+Download a release archive and run the binary installer:
+
+```bash
+# Download and extract the release (replace <version> with the release tag)
+curl -L https://github.com/<your-org>/logo-creator/releases/download/<version>/zikon-linux-x64.tar.gz | tar -xz
+cd zikon-linux-x64
+
+# Make the binary executable and install
+chmod +x zikon-linux
+./zikon-linux install
+~/.zikon/bin/zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+```
+
+Custom installation path:
+
+```bash
+./zikon-linux install --installation-path /opt/zikon
+/opt/zikon/bin/zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+```
+
+### Linux / macOS — from source
+
+```bash
+git clone https://github.com/<your-org>/logo-creator.git
+cd logo-creator
+node cli/zikon.js install
+~/.zikon/bin/zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+```
+
+Custom installation path:
+
+```bash
+node cli/zikon.js install --installation-path /opt/zikon
+/opt/zikon/bin/zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+```
+
+### Windows (PowerShell) — binary release
+
+```powershell
+# Download and extract the release
+Invoke-WebRequest -Uri "https://github.com/<your-org>/logo-creator/releases/download/<version>/zikon-windows-x64.zip" -OutFile zikon.zip
+Expand-Archive zikon.zip -DestinationPath zikon-windows-x64
+cd zikon-windows-x64
+
+# Install
+.\zikon-windows.exe install
+& "$env:USERPROFILE\.zikon\bin\zikon.cmd" "minimalist rocket icon" --model z-image-turbo --output-dir .\assets
+```
+
+Custom installation path:
+
+```powershell
+.\zikon-windows.exe install --installation-path C:\zikon
+& "C:\zikon\bin\zikon.cmd" "minimalist rocket icon" --model z-image-turbo --output-dir .\assets
+```
+
+### Windows (PowerShell) — from source
+
+```powershell
+git clone https://github.com/<your-org>/logo-creator.git
+cd logo-creator
+node .\cli\zikon.js install
+& "$env:USERPROFILE\.zikon\bin\zikon.cmd" "minimalist rocket icon" --model z-image-turbo --output-dir .\assets
+```
+
+Custom installation path:
+
+```powershell
+node .\cli\zikon.js install --installation-path C:\zikon
+& "C:\zikon\bin\zikon.cmd" "minimalist rocket icon" --model z-image-turbo --output-dir .\assets
+```
+
+What `zikon install` does:
+- Copies `cli/`, `scripts/generate/`, and `scripts/trace/` into the installation directory
+- Runs `uv sync` for the Python generator project
+- Installs the PyTorch backend selected for the detected GPU (`cuda`, `rocm`, `mps`, or `cpu`)
+- Installs Node dependencies for the CLI and tracer with `npm` or `pnpm`
+- Creates the `zikon` launcher in the installation `bin/` directory
+- On Linux/macOS, appends the install `bin/` path to `~/.bashrc` and `~/.zshrc` if needed
+
+### Visual verification in GitHub README render
+
+Open the repository on GitHub and confirm this Installation section renders as:
+- One prerequisites table for Linux, macOS, and Windows
+- Two command blocks (Bash + PowerShell) ending with a successful `zikon` invocation
+
 ## Usage
+
+After installation, run the global command:
+
+```bash
+zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+```
+
+If you prefer to run directly from the repository checkout:
 
 ```bash
 cd cli && npm install            # install commander dependency
@@ -92,7 +202,8 @@ node --test tests/test_zikon.js   # from project root
 |---|---|
 | Image generation | Python · `diffusers` · `torch` |
 | PNG → SVG tracing | Node.js · `imagetracerjs` |
-| CLI orchestration | Bash / Node |
+| CLI orchestration | Node.js |
+| Distribution build | Bun (cross-platform packaging target) |
 | Agent interface | Installable skill (`.md`) |
 
 ## Models
@@ -109,7 +220,7 @@ node --test tests/test_zikon.js   # from project root
 | 1 | Python generation pipeline | done |
 | 2 | PNG → SVG conversion | done |
 | 3 | Unified CLI | done |
-| 4 | Installable agent skill | pending |
+| 4 | Build package + installer | in progress |
 
 See [ROADMAP.md](./ROADMAP.md) for full detail.
 

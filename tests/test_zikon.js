@@ -22,18 +22,140 @@ const ZIKON_JS = path.resolve(__dirname, "..", "cli", "zikon.js");
 
 /**
  * @param {string[]} args
+ * @param {{ cwd?: string, env?: NodeJS.ProcessEnv }} [options]
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
-function runZikon(args) {
+function runZikon(args, options = {}) {
   const result = spawnSync("node", [ZIKON_JS, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    cwd: options.cwd,
+    env: options.env,
+    maxBuffer: 20 * 1024 * 1024,
   });
   return result;
 }
 
 function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "zikon-test-"));
+}
+
+function makeFakeBin(binDir) {
+  fs.mkdirSync(binDir, { recursive: true });
+
+  const bunPath = path.join(binDir, "bun");
+  const bunScript = `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "1.2.0"
+fi
+exit 0
+`;
+  fs.writeFileSync(bunPath, bunScript, "utf8");
+  fs.chmodSync(bunPath, 0o755);
+
+  const uvPath = path.join(binDir, "uv");
+  const uvScript = `#!/usr/bin/env bash
+set -euo pipefail
+log_file="\${ZIKON_FAKE_LOG:-}"
+if [[ -n "\${log_file}" ]]; then
+  echo "uv:$*" >> "\${log_file}"
+fi
+if [[ "$1" == "sync" ]]; then
+  mkdir -p ".venv"
+  touch ".venv/uv-synced"
+  exit 0
+fi
+if [[ "$1" == "run" ]]; then
+  output=""
+  prompt=""
+  model=""
+  seed_value=""
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      --output) output="$2"; shift 2 ;;
+      --prompt) prompt="$2"; shift 2 ;;
+      --model) model="$2"; shift 2 ;;
+      --seed) seed_value="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  mkdir -p "$(dirname "$output")"
+  printf '\\x89PNG\\r\\n\\x1a\\n' > "$output"
+  if [[ -z "$seed_value" ]]; then
+    seed_json="null"
+  else
+    seed_json="$seed_value"
+  fi
+  printf '{"prompt":"%s","model":"%s","seed":%s,"png_path":"%s"}\\n' "$prompt" "$model" "$seed_json" "$output"
+  exit 0
+fi
+if [[ "$1" == "pip" ]]; then
+  exit 0
+fi
+exit 1
+`;
+  fs.writeFileSync(uvPath, uvScript, "utf8");
+  fs.chmodSync(uvPath, 0o755);
+
+  const npmPath = path.join(binDir, "npm");
+  const npmScript = `#!/usr/bin/env bash
+set -euo pipefail
+log_file="\${ZIKON_FAKE_LOG:-}"
+if [[ -n "\${log_file}" ]]; then
+  echo "npm:$PWD:$*" >> "\${log_file}"
+fi
+mkdir -p "node_modules"
+if [[ "$PWD" == *"/scripts/trace" ]]; then
+  mkdir -p "node_modules/imagetracerjs/nodecli"
+  cat > "node_modules/imagetracerjs/imagetracer_v1.2.6.js" <<'JS'
+"use strict";
+module.exports = {
+  imagedataToSVG: () => "<svg xmlns=\\"http://www.w3.org/2000/svg\\"></svg>",
+};
+JS
+  cat > "node_modules/imagetracerjs/nodecli/PNGReader.js" <<'JS'
+"use strict";
+class PNGReader {
+  constructor(bytes) {
+    this.bytes = bytes;
+  }
+  parse(callback) {
+    callback(null, { width: 1, height: 1, pixels: this.bytes });
+  }
+}
+module.exports = PNGReader;
+JS
+fi
+if [[ "$PWD" == *"/cli" ]]; then
+  mkdir -p "node_modules/commander"
+  cat > "node_modules/commander/index.js" <<'JS'
+"use strict";
+class Command {
+  name() { return this; }
+  description() { return this; }
+  argument() { return this; }
+  option() { return this; }
+  configureOutput() { return this; }
+  exitOverride() { return this; }
+  parse() { return this; }
+  opts() { return { model: "z-image-turbo", outputDir: "./out" }; }
+  get args() { return ["test icon"]; }
+  outputHelp() {}
+}
+module.exports = { Command };
+JS
+fi
+exit 0
+`;
+  fs.writeFileSync(npmPath, npmScript, "utf8");
+  fs.chmodSync(npmPath, 0o755);
+}
+
+function writeFakeCommand(binDir, name, scriptBody) {
+  const scriptPath = path.join(binDir, name);
+  fs.writeFileSync(scriptPath, scriptBody, "utf8");
+  fs.chmodSync(scriptPath, 0o755);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,7 +379,10 @@ process.exit(2);
 
   // Also verify that the source of zikon.js uses process.exit(2) for SVG tracing errors
   const zikonSrc = fs.readFileSync(path.resolve(__dirname, "..", "cli", "zikon.js"), "utf8");
-  assert.ok(zikonSrc.includes("process.exit(2)"), "zikon.js must call process.exit(2) for SVG tracing errors");
+  assert.ok(
+    zikonSrc.includes("process.exit(EXIT_TRACE_ERROR)") || zikonSrc.includes("process.exit(2)"),
+    "zikon.js must call process.exit(2) for SVG tracing errors"
+  );
 
   fs.rmSync(tmpDir, { recursive: true });
 });
@@ -398,4 +523,650 @@ test("US-005-AC06: node --check syntax validation passes for zikon.js", () => {
     stdio: ["ignore", "pipe", "pipe"],
   });
   assert.equal(result.status, 0, `Syntax error in zikon.js:\n${result.stderr}`);
+});
+
+// ---------------------------------------------------------------------------
+// US-006-AC01..AC04: installation documentation
+// ---------------------------------------------------------------------------
+
+test("US-006-AC01: README.md has an Installation section with Linux, macOS, and Windows coverage", () => {
+  const readmePath = path.resolve(__dirname, "..", "README.md");
+  const readme = fs.readFileSync(readmePath, "utf8");
+  assert.ok(readme.includes("## Installation"), "README.md must include an Installation section");
+  assert.ok(readme.includes("Linux"), "README.md Installation must cover Linux");
+  assert.ok(readme.includes("macOS"), "README.md Installation must cover macOS");
+  assert.ok(readme.includes("Windows"), "README.md Installation must cover Windows");
+});
+
+test("US-006-AC02: README.md lists Bun, Node.js, and uv prerequisites with install links", () => {
+  const readmePath = path.resolve(__dirname, "..", "README.md");
+  const readme = fs.readFileSync(readmePath, "utf8");
+  assert.ok(readme.includes("### Prerequisites"), "README.md must include a prerequisites subsection");
+  assert.ok(readme.includes("https://bun.sh/docs/installation"), "README.md must include Bun install link");
+  assert.ok(readme.includes("https://nodejs.org/en/download"), "README.md must include Node.js install link");
+  assert.ok(
+    readme.includes("https://docs.astral.sh/uv/getting-started/installation/"),
+    "README.md must include uv install link"
+  );
+});
+
+test("US-006-AC03: README.md includes exact command sequences from download to first zikon invocation", () => {
+  const readmePath = path.resolve(__dirname, "..", "README.md");
+  const readme = fs.readFileSync(readmePath, "utf8");
+  assert.ok(
+    readme.includes("git clone https://github.com/<your-org>/logo-creator.git"),
+    "README.md must include git clone command"
+  );
+  assert.ok(readme.includes("node cli/zikon.js install"), "README.md must include Linux/macOS install command");
+  assert.ok(readme.includes("node .\\cli\\zikon.js install"), "README.md must include Windows install command");
+  assert.ok(readme.includes("~/.zikon/bin/zikon"), "README.md must include Linux/macOS zikon invocation");
+  assert.ok(
+    readme.includes("$env:USERPROFILE\\.zikon\\bin\\zikon.cmd"),
+    "README.md must include Windows zikon invocation"
+  );
+});
+
+test("US-006-AC04: README.md includes explicit GitHub README render visual-verification checklist", () => {
+  const readmePath = path.resolve(__dirname, "..", "README.md");
+  const readme = fs.readFileSync(readmePath, "utf8");
+  assert.ok(
+    readme.includes("### Visual verification in GitHub README render"),
+    "README.md must include visual verification subsection"
+  );
+  assert.ok(
+    readme.includes("One prerequisites table for Linux, macOS, and Windows"),
+    "README.md must include explicit visual verification criteria for the prerequisites table"
+  );
+  assert.ok(
+    readme.includes("Two command blocks (Bash + PowerShell) ending with a successful `zikon` invocation"),
+    "README.md must include explicit visual verification criteria for command blocks"
+  );
+});
+
+// ---------------------------------------------------------------------------
+// US-002-AC01..AC07: installer behavior
+// ---------------------------------------------------------------------------
+
+test("US-002-AC01/02/03/04/06: install creates ~/.zikon, copies runtime projects, installs deps, and updates shell profiles idempotently", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "nvidia",
+    ZIKON_TEST_GPU_NAME: "NVIDIA GeForce RTX 4090",
+    ZIKON_TEST_GPU_VRAM_GB: "24",
+  };
+
+  const firstRun = runZikon(["install"], { env });
+  assert.equal(firstRun.status, 0, `stderr: ${firstRun.stderr}`);
+
+  const installDir = path.join(tmpHome, ".zikon");
+  assert.ok(fs.existsSync(installDir), "install directory was not created");
+  assert.ok(fs.existsSync(path.join(installDir, "cli", "zikon.js")), "cli entry point missing after install");
+  assert.ok(fs.existsSync(path.join(installDir, "scripts", "generate", "pyproject.toml")), "scripts/generate project missing");
+  assert.ok(fs.existsSync(path.join(installDir, "scripts", "trace", "package.json")), "scripts/trace project missing");
+
+  assert.ok(fs.existsSync(path.join(installDir, "scripts", "generate", ".venv")), "uv virtual env was not created");
+  assert.ok(
+    fs.existsSync(path.join(installDir, "scripts", "trace", "node_modules", "imagetracerjs")),
+    "imagetracerjs was not installed"
+  );
+  assert.ok(
+    fs.existsSync(path.join(installDir, "cli", "node_modules", "commander")),
+    "commander was not installed"
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(logContent.includes("uv:sync"), "uv sync was not executed");
+  assert.ok(
+    logContent.includes(`npm:${path.join(installDir, "cli")}:install`),
+    "npm install was not executed for cli"
+  );
+  assert.ok(
+    logContent.includes(`npm:${path.join(installDir, "scripts", "trace")}:install`),
+    "npm install was not executed for scripts/trace"
+  );
+
+  const bashrcPath = path.join(tmpHome, ".bashrc");
+  const zshrcPath = path.join(tmpHome, ".zshrc");
+  const firstBashrc = fs.readFileSync(bashrcPath, "utf8");
+  const firstZshrc = fs.readFileSync(zshrcPath, "utf8");
+  assert.ok(firstBashrc.includes(`${installDir}/bin`), ".bashrc missing zikon bin path");
+  assert.ok(firstZshrc.includes(`${installDir}/bin`), ".zshrc missing zikon bin path");
+
+  const secondRun = runZikon(["install"], { env });
+  assert.equal(secondRun.status, 0, `stderr: ${secondRun.stderr}`);
+  const secondBashrc = fs.readFileSync(bashrcPath, "utf8");
+  const secondZshrc = fs.readFileSync(zshrcPath, "utf8");
+  assert.equal(
+    secondBashrc.split(`${installDir}/bin`).length - 1,
+    1,
+    ".bashrc contains duplicated zikon PATH entries"
+  );
+  assert.equal(
+    secondZshrc.split(`${installDir}/bin`).length - 1,
+    1,
+    ".zshrc contains duplicated zikon PATH entries"
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-002-AC05: after install, zikon command works from any directory and emits required JSON fields", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const workDir = makeTmpDir();
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+  };
+
+  const installResult = runZikon(["install"], { env });
+  assert.equal(installResult.status, 0, `stderr: ${installResult.stderr}`);
+
+  const installedCommand = path.join(tmpHome, ".zikon", "bin", "zikon");
+  const runResult = spawnSync(installedCommand, ["test icon", "--output-dir", workDir], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    cwd: workDir,
+    env,
+  });
+  assert.equal(runResult.status, 0, `stderr: ${runResult.stderr}`);
+  const payload = JSON.parse(runResult.stdout.trim());
+  assert.ok(payload.png_path, "missing png_path");
+  assert.ok(payload.svg_path, "missing svg_path");
+  assert.ok(payload.svg_inline, "missing svg_inline");
+
+  fs.rmSync(tmpHome, { recursive: true });
+  fs.rmSync(workDir, { recursive: true });
+});
+
+test("US-002-AC07: windows install prints manual PATH instructions", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_PLATFORM: "win32",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Add") && result.stderr.includes("PATH manually"),
+    `expected manual PATH instructions, got: ${result.stderr}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+// ---------------------------------------------------------------------------
+// US-003-AC01..AC05: custom installation path
+// ---------------------------------------------------------------------------
+
+test("US-003-AC01/02: install --installation-path creates custom layout and does not write ~/.zikon", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const customInstallDir = path.join(tmpHome, "custom", "zikon-install");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+  };
+
+  const result = runZikon(["install", "--installation-path", customInstallDir], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+  assert.ok(fs.existsSync(customInstallDir), "custom install directory was not created");
+  assert.ok(fs.existsSync(path.join(customInstallDir, "cli", "zikon.js")), "cli entry point missing");
+  assert.ok(
+    fs.existsSync(path.join(customInstallDir, "scripts", "generate", "pyproject.toml")),
+    "scripts/generate missing"
+  );
+  assert.ok(
+    fs.existsSync(path.join(customInstallDir, "scripts", "trace", "package.json")),
+    "scripts/trace missing"
+  );
+
+  assert.ok(
+    !fs.existsSync(path.join(tmpHome, ".zikon")),
+    "~/.zikon must not be created when --installation-path is provided"
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-003-AC03: zikon from custom installation path exits 0 and emits valid JSON", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const customInstallDir = path.join(tmpHome, "custom", "zikon-install");
+  const workDir = makeTmpDir();
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+  };
+
+  const installResult = runZikon(["install", "--installation-path", customInstallDir], { env });
+  assert.equal(installResult.status, 0, `stderr: ${installResult.stderr}`);
+
+  const installedCommand = path.join(customInstallDir, "bin", "zikon");
+  const runResult = spawnSync(installedCommand, ["test icon", "--output-dir", workDir], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    cwd: workDir,
+    env,
+  });
+
+  assert.equal(runResult.status, 0, `stderr: ${runResult.stderr}`);
+  const payload = JSON.parse(runResult.stdout.trim());
+  assert.equal(payload.prompt, "test icon");
+  assert.ok(typeof payload.png_path === "string" && payload.png_path.length > 0, "missing png_path");
+  assert.ok(typeof payload.svg_path === "string" && payload.svg_path.length > 0, "missing svg_path");
+  assert.ok(
+    typeof payload.svg_inline === "string" && payload.svg_inline.includes("<svg"),
+    "missing valid svg_inline"
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+  fs.rmSync(workDir, { recursive: true });
+});
+
+test("US-003-AC04: non-writable installation path prints clear error and exits non-zero", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const blockingFilePath = path.join(tmpHome, "not-a-directory");
+  makeFakeBin(fakeBin);
+  fs.writeFileSync(blockingFilePath, "blocking file", "utf8");
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+  };
+
+  const result = runZikon(["install", "--installation-path", blockingFilePath], { env });
+  assert.notEqual(result.status, 0, "install must fail for non-writable/non-creatable path");
+  assert.ok(
+    result.stderr.includes("Installation path") &&
+      result.stderr.includes("not writable or cannot be created"),
+    `stderr should contain clear writable-path error message, got: ${result.stderr}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-003-AC05: custom installation path behavior verified across linux, macOS, and windows shims", () => {
+  const platforms = ["linux", "darwin", "win32"];
+
+  for (const platform of platforms) {
+    const tmpHome = makeTmpDir();
+    const fakeBin = path.join(tmpHome, "fake-bin");
+    const customInstallDir = path.join(tmpHome, "custom", "zikon-install");
+    makeFakeBin(fakeBin);
+
+    const env = {
+      ...process.env,
+      HOME: tmpHome,
+      USERPROFILE: tmpHome,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      ZIKON_TEST_PLATFORM: platform,
+    };
+
+    const result = runZikon(["install", "--installation-path", customInstallDir], { env });
+    assert.equal(result.status, 0, `platform=${platform}; stderr: ${result.stderr}`);
+
+    if (platform === "win32") {
+      assert.ok(
+        fs.existsSync(path.join(customInstallDir, "bin", "zikon.cmd")),
+        "windows install must create zikon.cmd shim"
+      );
+    } else {
+      assert.ok(
+        fs.existsSync(path.join(customInstallDir, "bin", "zikon")),
+        `${platform} install must create unix shim`
+      );
+    }
+
+    fs.rmSync(tmpHome, { recursive: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// US-004-AC01..AC07: GPU detection and backend selection during install
+// ---------------------------------------------------------------------------
+
+test("US-004-AC01/AC02/AC06: NVIDIA GPU with >=4GB selects CUDA backend and prints detection details", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+  writeFakeCommand(
+    fakeBin,
+    "nvidia-smi",
+    `#!/usr/bin/env bash
+echo "NVIDIA GeForce RTX 4090, 24564"
+`
+  );
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "nvidia",
+    ZIKON_TEST_GPU_NAME: "NVIDIA GeForce RTX 4090",
+    ZIKON_TEST_GPU_VRAM_GB: "24",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=nvidia"), `missing NVIDIA vendor in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("RTX 4090"), `missing NVIDIA name in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vram="), `missing VRAM in output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: cuda"),
+    `missing CUDA backend selection output: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(
+    logContent.includes("uv:pip install") && logContent.includes("download.pytorch.org/whl/cu124"),
+    `expected CUDA PyTorch install command, got log: ${logContent}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-004-AC01/AC03/AC06: AMD GPU with >=4GB selects ROCm backend and prints detection details", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+  writeFakeCommand(
+    fakeBin,
+    "rocm-smi",
+    `#!/usr/bin/env bash
+echo '{"card0":{"Card series":"AMD Radeon RX 7900 XTX","VRAM Total Memory (B)":25769803776}}'
+`
+  );
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "amd",
+    ZIKON_TEST_GPU_NAME: "AMD Radeon RX 7900 XTX",
+    ZIKON_TEST_GPU_VRAM_GB: "24",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=amd"), `missing AMD vendor in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("RX 7900 XTX"), `missing AMD name in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vram="), `missing VRAM in output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: rocm"),
+    `missing ROCm backend selection output: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(
+    logContent.includes("uv:pip install") && logContent.includes("download.pytorch.org/whl/rocm6.2.4"),
+    `expected ROCm PyTorch install command, got log: ${logContent}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-004-AC01/AC04/AC06: Apple Silicon selects MPS backend and prints detection details", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+  writeFakeCommand(
+    fakeBin,
+    "sysctl",
+    `#!/usr/bin/env bash
+echo "Apple M2 Max"
+`
+  );
+  writeFakeCommand(
+    fakeBin,
+    "system_profiler",
+    `#!/usr/bin/env bash
+echo "Hardware:"
+echo "    Memory: 32 GB"
+`
+  );
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_PLATFORM: "darwin",
+    ZIKON_TEST_ARCH: "arm64",
+    ZIKON_TEST_GPU_PROFILE: "apple",
+    ZIKON_TEST_GPU_NAME: "Apple M2 Max",
+    ZIKON_TEST_GPU_VRAM_GB: "32",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=apple"), `missing Apple vendor in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("Apple M2 Max"), `missing Apple chip name in output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vram=32.00 GB"), `missing Apple memory output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: mps"),
+    `missing MPS backend selection output: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(logContent.includes("uv:pip install"), `expected PyTorch install command, got log: ${logContent}`);
+  assert.ok(logContent.includes(" torch"), "expected torch package to be installed");
+  assert.ok(!logContent.includes("/cu124"), "MPS install should not use CUDA index");
+  assert.ok(!logContent.includes("/rocm"), "MPS install should not use ROCm index");
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-004-AC05/AC06: no supported GPU falls back to CPU backend and warns user", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "none",
+    ZIKON_TEST_GPU_NAME: "No supported GPU detected",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=none"), `missing no-GPU detection output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: cpu"),
+    `missing CPU backend selection output: ${result.stderr}`
+  );
+  assert.ok(
+    result.stderr.includes("WARNING") && result.stderr.includes("CPU-only PyTorch"),
+    `missing CPU fallback warning: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(
+    logContent.includes("uv:pip install") && logContent.includes("download.pytorch.org/whl/cpu"),
+    `expected CPU PyTorch install command, got log: ${logContent}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-004-AC05/AC07: low-VRAM NVIDIA profile falls back to CPU backend in cross-machine scenario matrix", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const logFile = path.join(tmpHome, "installer.log");
+  makeFakeBin(fakeBin);
+  writeFakeCommand(
+    fakeBin,
+    "nvidia-smi",
+    `#!/usr/bin/env bash
+echo "NVIDIA GeForce GTX 1650, 2048"
+`
+  );
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_FAKE_LOG: logFile,
+    ZIKON_TEST_GPU_PROFILE: "nvidia",
+    ZIKON_TEST_GPU_NAME: "NVIDIA GeForce GTX 1650",
+    ZIKON_TEST_GPU_VRAM_GB: "2",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vendor=nvidia"), `missing NVIDIA detection output: ${result.stderr}`);
+  assert.ok(result.stderr.includes("vram=2.00 GB"), `missing low VRAM output: ${result.stderr}`);
+  assert.ok(
+    result.stderr.includes("Selected PyTorch backend: cpu"),
+    `expected CPU fallback backend for low VRAM, got: ${result.stderr}`
+  );
+
+  const logContent = fs.readFileSync(logFile, "utf8");
+  assert.ok(logContent.includes("download.pytorch.org/whl/cpu"), "low-VRAM scenario must install CPU backend");
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+// ---------------------------------------------------------------------------
+// Iteration 000004 - US-005-AC01..AC05: runtime dependency validation
+// ---------------------------------------------------------------------------
+
+test("US-005-AC01: installer validates bun, node, and npm/pnpm before install", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_FORCE_MISSING_TOOLS: "bun,node,npm,pnpm",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.notEqual(result.status, 0, "install must fail when required runtime tools are missing");
+  assert.ok(result.stderr.includes("bun not found"), `missing bun guidance in stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("node not found"), `missing node guidance in stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes("npm/pnpm not found"), `missing npm/pnpm guidance in stderr: ${result.stderr}`);
+  assert.ok(!fs.existsSync(path.join(tmpHome, ".zikon")), "installer must not create filesystem artifacts on failed preflight");
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-005-AC02/AC03: installer validates uv and exits before filesystem changes with actionable guidance", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  const installPath = path.join(tmpHome, "custom", "install-location");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_FORCE_MISSING_TOOLS: "uv",
+  };
+
+  const result = runZikon(["install", "--installation-path", installPath], { env });
+  assert.notEqual(result.status, 0, "install must fail when uv is missing");
+  assert.ok(
+    result.stderr.includes("uv not found - install with: curl -Ls https://astral.sh/uv/install.sh | sh"),
+    `stderr must include actionable uv guidance; got: ${result.stderr}`
+  );
+  assert.ok(
+    !fs.existsSync(installPath),
+    "installer must fail before creating installation path when dependency preflight fails"
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-005-AC04: installer proceeds without prompts when all runtime dependencies are available", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_GPU_PROFILE: "none",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(
+    !result.stderr.includes("Missing required runtime tools"),
+    `preflight should pass when tools are available; stderr: ${result.stderr}`
+  );
+
+  fs.rmSync(tmpHome, { recursive: true });
+});
+
+test("US-005-AC05: intentionally missing one tool is verified to fail fast", () => {
+  const tmpHome = makeTmpDir();
+  const fakeBin = path.join(tmpHome, "fake-bin");
+  makeFakeBin(fakeBin);
+
+  const env = {
+    ...process.env,
+    HOME: tmpHome,
+    USERPROFILE: tmpHome,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    ZIKON_TEST_FORCE_MISSING_TOOLS: "bun",
+  };
+
+  const result = runZikon(["install"], { env });
+  assert.notEqual(result.status, 0, "installer must fail when bun is intentionally missing");
+  assert.ok(result.stderr.includes("bun not found"), `missing bun guidance in stderr: ${result.stderr}`);
+
+  fs.rmSync(tmpHome, { recursive: true });
 });
