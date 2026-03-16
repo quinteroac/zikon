@@ -29,7 +29,14 @@ const EXIT_GENERATION_ERROR = 1;
 const EXIT_TRACE_ERROR = 2;
 const EXIT_INVALID_ARGUMENTS = 3;
 
-const PROJECT_ROOT = path.join(__dirname, "..");
+// In dev mode (node cli/zikon.js), __dirname is the cli/ directory and scripts/
+// lives one level up at the project root.  When compiled with `bun build --compile`,
+// __dirname resolves to the directory of the executable; scripts/ is co-located
+// there (copied by scripts/build.js).  Detect which layout is active at runtime.
+const _scripts_at_parent = path.join(__dirname, "..", "scripts");
+const PROJECT_ROOT = fs.existsSync(_scripts_at_parent)
+  ? path.join(__dirname, "..")  // dev mode: scripts/ at project root
+  : __dirname;                  // compiled binary: scripts/ alongside executable
 const GENERATE_PY = path.join(PROJECT_ROOT, "scripts", "generate", "generate.py");
 const GENERATE_PROJECT = path.join(PROJECT_ROOT, "scripts", "generate");
 const IMAGETRACER_JS = path.join(

@@ -1,0 +1,93 @@
+{
+  "iteration": "000004",
+  "generated_at": "2026-03-15",
+  "executive_summary": "Iteration 000004 is largely successful: five of six user stories (US-002 through US-006) are fully implemented and conform to all acceptance criteria. The single non-conforming area is US-001 (Bun build pipeline), where the build script to produce three cross-platform standalone binaries (linux-x64, darwin-x64, win32-x64) was never implemented. No package.json build script, bunfig.toml, or equivalent bundling configuration exists. The CLI is fully functional when invoked via `node cli/zikon.js`, but the distributable binary artifact goal stated in FR-1 and US-001-AC01 through AC04 is unmet. All other functional requirements (FR-2 through FR-9) are satisfied, including default and custom installation paths, GPU detection with CUDA/ROCm/MPS/CPU backend selection, runtime dependency validation with actionable error messages, correct stderr/stdout channel separation, idempotent shell profile updates on Linux/macOS, Windows PATH instructions, and comprehensive README documentation.",
+  "verification_by_fr": [
+    {
+      "frId": "FR-1",
+      "assessment": "does_not_comply",
+      "note": "No build script exists to target linux-x64, darwin-x64, or win32-x64. No bunfig.toml, no 'build' entry in package.json. Only a 'test' script is present."
+    },
+    {
+      "frId": "FR-2",
+      "assessment": "comply",
+      "note": "get_install_dir() returns ~/.zikon (Linux/macOS) via HOME or os.homedir(), and %USERPROFILE%\\.zikon on Windows. Verified in cli/zikon.js lines 72-81."
+    },
+    {
+      "frId": "FR-3",
+      "assessment": "comply",
+      "note": "parse_install_arguments() handles both --installation-path=<path> and --installation-path <path> forms. Custom path completely replaces default; no fallback to ~/.zikon. Verified in cli/zikon.js lines 83-104, 574."
+    },
+    {
+      "frId": "FR-4",
+      "assessment": "comply",
+      "note": "detect_nvidia_gpu(), detect_amd_gpu(), detect_apple_silicon_gpu() cover all three vendors. Absence of supported GPU returns { vendor: 'none' } and falls back to CPU-only without crashing. Verified in cli/zikon.js lines 210-386."
+    },
+    {
+      "frId": "FR-5",
+      "assessment": "comply",
+      "note": "validate_install_dependencies() runs at lines 565-571, before install_runtime() (which contains all filesystem writes) is called at line 577. Missing tools cause immediate exit(1) with no directory creation."
+    },
+    {
+      "frId": "FR-6",
+      "assessment": "comply",
+      "note": "All installer/progress messages use write_stderr(). stdout is only written at the end of the generate flow via process.stdout.write(JSON.stringify(result)). Install flow produces no stdout output."
+    },
+    {
+      "frId": "FR-7",
+      "assessment": "comply",
+      "note": "Constants defined at lines 27-30: EXIT_SUCCESS=0, EXIT_GENERATION_ERROR=1, EXIT_TRACE_ERROR=2, EXIT_INVALID_ARGUMENTS=3. All install code paths use the correct constant."
+    },
+    {
+      "frId": "FR-8",
+      "assessment": "comply",
+      "note": "ensure_profile_path_entry() appends a marked block (# >>> zikon >>> / # <<< zikon <<<) to ~/.bashrc and ~/.zshrc. Idempotency is enforced by checking for the marker before writing. Runs only on non-Windows platforms."
+    },
+    {
+      "frId": "FR-9",
+      "assessment": "comply",
+      "note": "On win32, installer prints 'Add <bin_dir> to PATH manually, then open a new terminal.' and returns immediately without touching registry or any shell config. Verified in cli/zikon.js lines 512-514."
+    }
+  ],
+  "verification_by_us": [
+    {
+      "usId": "US-001",
+      "assessment": "does_not_comply",
+      "note": "AC01: No three-binary build exists. AC02: No bundling of cli/zikon.js with Node deps. AC03: No embedding of scripts/ as build artifact. AC04: Build cannot complete — no build script. AC05: Cannot assess lint/typecheck in the context of a build pipeline that does not exist."
+    },
+    {
+      "usId": "US-002",
+      "assessment": "comply",
+      "note": "AC01: Directory created with mkdirSync recursive. AC02: cli/, scripts/generate/, scripts/trace/ all copied. AC03: uv sync executed for Python deps. AC04: npm/pnpm install executed for tracer Node deps. AC05: Functional when run via node — binary prerequisite from US-001 is the blocker for this to work from a downloaded binary. AC06: ~/.bashrc and ~/.zshrc updated idempotently via marked blocks. AC07: Windows prints manual PATH instructions. AC08: Manual cross-platform verification is inherently out-of-scope for code audit."
+    },
+    {
+      "usId": "US-003",
+      "assessment": "comply",
+      "note": "AC01: --installation-path creates and populates custom directory with same layout. AC02: No files written to ~/.zikon when flag is provided. AC03: Functional after install at custom path. AC04: ensure_writable_install_dir() throws with clear message on write failure; caught and rethrown as exit(1). AC05: Manual cross-platform verification out-of-scope for code audit."
+    },
+    {
+      "usId": "US-004",
+      "assessment": "comply",
+      "note": "AC01: All three vendors detected (NVIDIA via nvidia-smi, AMD via rocm-smi, Apple via sysctl+system_profiler). AC02: NVIDIA ≥4GB → cuda. AC03: AMD ≥4GB → rocm. AC04: Apple Silicon arm64 → mps. AC05: No GPU or <4GB VRAM → cpu with printed warning. AC06: GPU name, VRAM, vendor, and backend printed to stderr. AC07: Manual multi-machine verification out-of-scope."
+    },
+    {
+      "usId": "US-005",
+      "assessment": "comply",
+      "note": "AC01: bun, node, npm/pnpm all checked. AC02: uv checked. AC03: Each missing tool prints actionable message with install URL/command; exits non-zero before any filesystem change. AC04: All tools present → proceeds without prompts. AC05: Manual verification with missing tool out-of-scope."
+    },
+    {
+      "usId": "US-006",
+      "assessment": "comply",
+      "note": "AC01: README.md has an 'Installation' section covering Linux, macOS, and Windows. AC02: Prerequisites table lists Bun, Node.js, uv with install links for each OS. AC03: Exact command sequences from clone to first zikon invocation provided for Bash and PowerShell. AC04: Visual browser verification checklist included in README."
+    }
+  ],
+  "minor_observations": [
+    "The README installation commands use `node cli/zikon.js install` rather than a downloaded binary path — this is consistent with the current state of the project (no build pipeline), but once US-001 is implemented, the README will need updating to reflect binary download and usage.",
+    "ensure_profile_path_entry() updates both ~/.bashrc AND ~/.zshrc unconditionally on all non-Windows platforms, even if one or both files do not exist. A missing file will be created by fs.writeFileSync. This is intentional but could be surprising if the user's shell is not bash or zsh (e.g., fish).",
+    "The runtime dependency check exits with EXIT_GENERATION_ERROR (code 1) when dependencies are missing, rather than EXIT_INVALID_ARGUMENTS (code 3). While exit code 1 is technically correct for a pre-condition failure, a 'missing dependency' could arguably map to 'environment setup error' rather than 'generation error'. This is a minor naming/semantic concern with the current constant naming.",
+    "The Apple Silicon GPU detection reads system memory (RAM) via system_profiler and uses it as vram_gb proxy. On Apple Silicon, RAM is unified memory shared with the GPU — this is correct technically, but it may report much more than the actual GPU budget for typical inference workloads.",
+    "No test exercises the full end-to-end install flow on a real filesystem (all tests use stubs/mocks). This is acceptable for unit testing but leaves integration coverage absent.",
+    "The Windows shim (zikon.cmd) hardcodes a relative path (`%~dp0\\..\\cli\\zikon.js`) that assumes the install layout is always bin/../cli/zikon.js. This is correct for the current layout but may break if the bin directory is relocated."
+  ],
+  "conclusions_and_recommendations": "The implementation of iteration 000004 is strong overall with one critical gap: the Bun build pipeline (US-001 / FR-1) was not implemented. The stated goal of shipping Zikon as a self-contained distributable downloaded and run with a single command cannot be achieved until binaries are produced. The following actions are recommended: (1) CRITICAL — Implement the Bun build script: add a 'build' entry to package.json that calls `bun build --compile --target=bun-linux-x64 --outfile=dist/zikon-linux cli/zikon.js` (and equivalent for macos/windows), embed or co-locate the scripts/ directory as documented in US-001-AC03, and validate that the build completes cleanly. (2) MINOR — Update README installation commands to reference the downloaded binary paths once the build pipeline exists. (3) MINOR — Consider adding a note in shell profile update logic about non-bash/non-zsh shells (fish, nushell, etc.). (4) MINOR — Revisit the exit code used for missing runtime dependencies; EXIT_PRECONDITION_FAILED (a new code or reusing 3) could be more semantically accurate, though the current behavior is not incorrect."
+}

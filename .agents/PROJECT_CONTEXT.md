@@ -12,8 +12,8 @@
 - Language: Python 3.11+ (generation) + Node.js (tracing, orchestration)
 - Runtime: CPython 3.x; Node.js (LTS)
 - Frameworks: `diffusers` + `torch` + `accelerate` + `Pillow` for inference; stdlib for stub backend; `imagetracerjs` for SVG tracing; `commander` for CLI
-- Package manager: `uv` for Python (each script group has its own `pyproject.toml`); `npm` for Node.js (`package.json` at project root)
-- Build / tooling: `ruff` (lint), `python3 -m py_compile` (syntax check), `node --check` (JS syntax check)
+- Package manager: `uv` for Python (each script group has its own `pyproject.toml`); `npm`/`pnpm` for Node.js runtime deps; Bun is the cross-platform build target for packaging
+- Build / tooling: `ruff` (lint), `python3 -m py_compile` (syntax check), `node --check` (JS syntax check), Bun for distributable builds
 
 ## Code Standards
 - Style patterns: dataclasses for config objects, typed signatures throughout
@@ -29,12 +29,12 @@
 
 ## Product Architecture
 - Pipeline: `prompt → generate.py (diffusers) → PNG → imagetracerjs → SVG + JSON`
-- Orchestration: `node cli/zikon.js` chains both steps and emits the final JSON
+- Orchestration: `node cli/zikon.js` chains both steps and emits the final JSON; `node cli/zikon.js install` installs a self-contained runtime
 - Current state: PNG generation uses stub backend (solid-color PNG derived from SHA-256 hash); SVG is traced via imagetracerjs
-- Main components: unified CLI (`cli/zikon.js`), Python PNG generator, imagetracerjs SVG tracer
+- Main components: unified CLI (`cli/zikon.js`), installer flow, Python PNG generator, imagetracerjs SVG tracer
 
 ## Modular Structure
-- `cli/zikon.js` — Node.js unified CLI orchestrator (commander); chains generate.py → imagetracerjs; emits final JSON
+- `cli/zikon.js` — Node.js unified CLI orchestrator (commander); chains generate.py → imagetracerjs; emits final JSON; supports `install` mode with `--installation-path`
 - `cli/package.json` — Node.js project manifest; lists `commander` v14 as dependency
 - `tests/test_zikon.js` — acceptance-criteria test suite for iteration 3 (US-001..US-005)
 - `scripts/generate/` — standalone `uv` project for PNG generation
@@ -59,3 +59,16 @@
 - **US-003** Exit codes — `0` success · `1` PNG generation error · `2` SVG tracing error · `3` invalid/missing arguments
 - **US-004** `--style` flag — appends style hint to prompt forwarded to `generate.py`; original `prompt` field unaffected
 - **US-005** Documentation — `README.md`, `AGENTS.md`, and `.agents/PROJECT_CONTEXT.md` updated to reflect the unified CLI
+
+### Iteration 000004
+- **US-001** Installer entry point — `node cli/zikon.js install [--installation-path <path>]`; installs into `~/.zikon` by default or a caller-provided path
+- **US-002** Runtime setup — installer copies `cli/`, `scripts/generate/`, and `scripts/trace/`; runs `uv sync`; installs PyTorch backend based on detected GPU; installs Node dependencies for CLI and tracer
+- **US-003** Executable layout — installation creates `bin/zikon` on Unix-like systems or `bin/zikon.cmd` on Windows so the command can be run outside the repository
+- **US-004** Shell integration — Unix install updates `~/.bashrc` and `~/.zshrc` idempotently; Windows install prints manual PATH instructions
+- **US-005** Documentation — `README.md`, `AGENTS.md`, and `.agents/PROJECT_CONTEXT.md` document installation, custom installation paths, and post-install usage
+
+## Installation Notes
+- Default install directory: `~/.zikon` on Unix-like systems; `%USERPROFILE%\\.zikon` on Windows
+- Custom install directory: use `--installation-path <path>`
+- Required tools detected before install: `bun`, `node`, `uv`, and either `npm` or `pnpm`
+- Bun is the distribution/build target for this iteration; repository-local development still runs through `node cli/zikon.js`

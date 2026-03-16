@@ -2,7 +2,7 @@
 
 ## Project overview
 
-`Zikon` is a developer utility that generates web icons and visual assets via a diffusion model pipeline and converts them to SVG. It is designed to be invoked by AI agents mid-task.
+`Zikon` is a developer utility that generates web icons and visual assets via a diffusion model pipeline and converts them to SVG. It is designed to be invoked by AI agents mid-task and can be installed locally as a reusable CLI.
 
 ## Pipeline summary
 
@@ -12,19 +12,19 @@ prompt → generate.py (diffusers) → PNG → trace.js (imagetracerjs) → SVG 
 
 ## Script layout
 
-Python scripts are grouped under `scripts/`, each as a standalone `uv` project. The Node.js orchestrator lives under `cli/`:
+Python scripts are grouped under `scripts/`, each as a standalone `uv` project. The Node.js orchestrator and installer live under `cli/`:
 
 | Path | Purpose |
 |---|---|
 | `scripts/generate/` | PNG generation — Python + diffusers + torch |
 | `scripts/trace/` | PNG → SVG tracing — Node.js + imagetracerjs |
-| `cli/` | Unified CLI orchestrator — Node.js + commander |
+| `cli/` | Unified CLI orchestrator and installer — Node.js + commander |
 
 ## Key files
 
 | File | Purpose |
 |---|---|
-| `cli/zikon.js` | Unified CLI entry point — orchestrates PNG + SVG pipeline |
+| `cli/zikon.js` | Unified CLI entry point — orchestrates PNG + SVG pipeline and implements `zikon install` |
 | `cli/package.json` | Node.js project manifest (commander dependency) |
 | `scripts/generate/generate.py` | Python CLI — generates PNG from prompt |
 | `scripts/generate/diffusers_backend.py` | Real diffusers+torch pipeline |
@@ -37,6 +37,16 @@ Python scripts are grouped under `scripts/`, each as a standalone `uv` project. 
 **Unified CLI (current):**
 ```bash
 node cli/zikon.js "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>]
+```
+
+**Installer command (current):**
+```bash
+node cli/zikon.js install [--installation-path <path>]
+```
+
+**Installed command (after `zikon install`):**
+```bash
+zikon "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>]
 ```
 
 **Python generate script (standalone):**
@@ -60,8 +70,18 @@ Output is always a single JSON object on stdout:
 
 Exit codes: `0` success · `1` PNG generation error · `2` SVG tracing error · `3` invalid arguments.
 
+## Installation behavior
+
+- Default install directory: `~/.zikon` on Linux/macOS and `%USERPROFILE%\\.zikon` on Windows
+- Custom install directory: pass `--installation-path <path>`
+- Installer copies `cli/`, `scripts/generate/`, and `scripts/trace/` into the target directory
+- Installer runs `uv sync`, installs the selected PyTorch backend, and installs Node dependencies for both `cli/` and `scripts/trace/`
+- Installer creates the executable shim in `bin/` (`zikon` on Unix, `zikon.cmd` on Windows)
+- On Unix-like systems, the installer updates `~/.bashrc` and `~/.zshrc`; on Windows it prints manual PATH instructions
+
 ## Agent instructions
 
+- If Zikon is not installed yet, run `node cli/zikon.js install` first from the repository checkout.
 - Always pass `--output-dir` to avoid writing to the current working directory.
 - Use `--model z-image-turbo` for fast iteration, `--model sdxl` for final output.
 - Parse `svg_inline` from the JSON response to embed the SVG directly in markup.
@@ -72,6 +92,7 @@ Exit codes: `0` success · `1` PNG generation error · `2` SVG tracing error · 
 - **Python 3.11+** + `diffusers` + `torch` + `accelerate` + `Pillow` — image generation
 - **uv** — dependency management; each script group has its own `pyproject.toml`
 - **Node.js** + `imagetracerjs` — SVG tracing (`scripts/trace/`)
+- **Bun** — cross-platform packaging target for distributable installer builds
 - No external API calls — all inference runs locally
 
 ## Current iteration
