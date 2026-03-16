@@ -220,9 +220,35 @@ node --test tests/test_zikon.js   # from project root
 | 1 | Python generation pipeline | done |
 | 2 | PNG → SVG conversion | done |
 | 3 | Unified CLI | done |
-| 4 | Build package + installer | in progress |
+| 4 | Build package + installer | done |
 
 See [ROADMAP.md](./ROADMAP.md) for full detail.
+
+## Skills
+
+Zikon ships as an installable skill for Claude Code and compatible agents.
+
+### Install the skill
+
+```bash
+npx skills add https://github.com/quinteroac/zikon/zikon-skills
+```
+
+### Invoke the skill
+
+Minimal invocation:
+
+```
+/zikon "rocket icon"
+```
+
+With optional parameters:
+
+```
+/zikon "rocket icon" --model sdxl --style flat --output-dir ./assets/icons
+```
+
+The skill wraps the CLI and returns the structured JSON output directly into the agent's context. See `zikon-skills/SKILL.md` for the full parameter reference and output contract.
 
 ## Agent usage
 

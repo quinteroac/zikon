@@ -67,6 +67,12 @@
 - **US-004** Shell integration — Unix install updates `~/.bashrc` and `~/.zshrc` idempotently; Windows install prints manual PATH instructions
 - **US-005** Documentation — `README.md`, `AGENTS.md`, and `.agents/PROJECT_CONTEXT.md` document installation, custom installation paths, and post-install usage
 
+### Iteration 000005
+- **US-001** Skill entry point — `zikon-skills/index.js` exports a `run(params)` function that shells out to `node cli/zikon.js` (or the installed `zikon` shim) and returns parsed JSON
+- **US-002** Installation via Vercel Labs skills tooling — `npx skills add https://github.com/quinteroac/zikon/zikon-skills` installs the skill; `package.json` declares `name: "zikon"` and the `main` entry point
+- **US-003** Agent invocation returns usable SVG — `/zikon "<prompt>"` runs the full pipeline and surfaces `svg_inline` directly in the agent context
+- **US-004** Documentation — `README.md` has a "Skills" section with install URL and `/zikon` syntax; `AGENTS.md` references `zikon-skills/SKILL.md` and invocation pattern; `.agents/PROJECT_CONTEXT.md` lists skill under Implemented Capabilities for iteration 000005
+
 ## Installation Notes
 - Default install directory: `~/.zikon` on Unix-like systems; `%USERPROFILE%\\.zikon` on Windows
 - Custom install directory: use `--installation-path <path>`

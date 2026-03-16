@@ -1170,3 +1170,181 @@ test("US-005-AC05: intentionally missing one tool is verified to fail fast", () 
 
   fs.rmSync(tmpHome, { recursive: true });
 });
+
+// ---------------------------------------------------------------------------
+// Iteration 000005 - US-003: Agent invocation returns usable SVG
+// ---------------------------------------------------------------------------
+
+// AC01: exits 0 for "rocket icon" prompt
+test("IT-000005/US-003-AC01: exits 0 for 'rocket icon' prompt", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    const result = runZikon(["rocket icon", "--output-dir", tmpDir]);
+    assert.equal(result.status, 0, `expected exit 0; stderr: ${result.stderr}`);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+// AC02: stdout contains exactly one JSON object with all six required fields
+test("IT-000005/US-003-AC02: stdout contains exactly one JSON object with all six required fields", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    const result = runZikon(["rocket icon", "--output-dir", tmpDir]);
+    assert.equal(result.status, 0, `expected exit 0; stderr: ${result.stderr}`);
+
+    const trimmed = result.stdout.trim();
+    assert.ok(trimmed.startsWith("{"), "stdout must start with {");
+    assert.ok(trimmed.endsWith("}"), "stdout must end with }");
+
+    let payload;
+    try {
+      payload = JSON.parse(trimmed);
+    } catch (e) {
+      assert.fail(`stdout is not valid JSON: ${e.message}\nstdout: ${result.stdout}`);
+    }
+
+    for (const key of ["prompt", "model", "seed", "png_path", "svg_path", "svg_inline"]) {
+      assert.ok(key in payload, `JSON output missing required field: ${key}`);
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+// AC03: svg_inline is a non-empty string starting with <svg
+test("IT-000005/US-003-AC03: svg_inline is a non-empty string starting with <svg", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    const result = runZikon(["rocket icon", "--output-dir", tmpDir]);
+    assert.equal(result.status, 0, `expected exit 0; stderr: ${result.stderr}`);
+
+    const payload = JSON.parse(result.stdout.trim());
+    assert.ok(
+      typeof payload.svg_inline === "string" && payload.svg_inline.length > 0,
+      "svg_inline must be a non-empty string"
+    );
+    assert.ok(
+      payload.svg_inline.trimStart().startsWith("<svg"),
+      `svg_inline must start with <svg; got: ${payload.svg_inline.slice(0, 60)}`
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+// AC04: optional parameters --model, --style, --output-dir are forwarded correctly
+test("IT-000005/US-003-AC04: --model is forwarded and reflected in the JSON output", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    const result = runZikon(["rocket icon", "--model", "sdxl", "--output-dir", tmpDir]);
+    assert.equal(result.status, 0, `expected exit 0; stderr: ${result.stderr}`);
+    const payload = JSON.parse(result.stdout.trim());
+    assert.equal(payload.model, "sdxl", "model field must reflect the --model flag value");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+test("IT-000005/US-003-AC04: --style flag is accepted and original prompt is preserved in JSON", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    const result = runZikon(["rocket icon", "--style", "minimal", "--output-dir", tmpDir]);
+    assert.equal(result.status, 0, `--style flag caused unexpected failure; stderr: ${result.stderr}`);
+    const payload = JSON.parse(result.stdout.trim());
+    assert.equal(
+      payload.prompt,
+      "rocket icon",
+      "prompt field must be the original prompt, not the style-appended version"
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+test("IT-000005/US-003-AC04: --output-dir controls where PNG and SVG files are written", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    const result = runZikon(["rocket icon", "--output-dir", tmpDir]);
+    assert.equal(result.status, 0, `expected exit 0; stderr: ${result.stderr}`);
+    const payload = JSON.parse(result.stdout.trim());
+    assert.ok(
+      payload.png_path.startsWith(tmpDir),
+      `png_path "${payload.png_path}" must be inside --output-dir "${tmpDir}"`
+    );
+    assert.ok(
+      payload.svg_path.startsWith(tmpDir),
+      `svg_path "${payload.svg_path}" must be inside --output-dir "${tmpDir}"`
+    );
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+// AC05: typecheck / lint passes (node --check)
+test("IT-000005/US-003-AC05: node --check syntax validation passes for zikon.js", () => {
+  const result = spawnSync("node", ["--check", ZIKON_JS], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  assert.equal(result.status, 0, `Syntax error in zikon.js:\n${result.stderr}`);
+});
+
+// ---------------------------------------------------------------------------
+// IT-000005 / US-004 — Installation and usage documentation
+// ---------------------------------------------------------------------------
+
+const ROOT = path.resolve(__dirname, "..");
+
+// AC01: README.md contains a "Skills" section with npx skills add zikon and /zikon syntax
+test("IT-000005/US-004-AC01: README.md has a Skills section with npx skills add zikon", () => {
+  const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
+  assert.ok(readme.includes("## Skills"), "README.md must contain a ## Skills section");
+  assert.ok(
+    readme.includes("npx skills add zikon"),
+    "README.md Skills section must document 'npx skills add zikon'"
+  );
+  assert.ok(
+    readme.includes("/zikon"),
+    "README.md Skills section must document the /zikon invocation syntax"
+  );
+});
+
+// AC02: AGENTS.md references .agents/skills/zikon/SKILL.md and invocation pattern
+test("IT-000005/US-004-AC02: AGENTS.md references skill file location and invocation pattern", () => {
+  const agents = fs.readFileSync(path.join(ROOT, "AGENTS.md"), "utf8");
+  assert.ok(
+    agents.includes(".agents/skills/zikon/SKILL.md"),
+    "AGENTS.md must reference .agents/skills/zikon/SKILL.md"
+  );
+  assert.ok(
+    agents.includes("/zikon"),
+    "AGENTS.md must document the /zikon invocation pattern"
+  );
+});
+
+// AC03: .agents/PROJECT_CONTEXT.md lists skill under Implemented Capabilities for iteration 000005
+test("IT-000005/US-004-AC03: PROJECT_CONTEXT.md lists skill under Iteration 000005", () => {
+  const ctx = fs.readFileSync(path.join(ROOT, ".agents", "PROJECT_CONTEXT.md"), "utf8");
+  assert.ok(
+    ctx.includes("### Iteration 000005"),
+    ".agents/PROJECT_CONTEXT.md must contain an ### Iteration 000005 section"
+  );
+  // The skill capability must appear after the iteration heading
+  const it5idx = ctx.indexOf("### Iteration 000005");
+  const after = ctx.slice(it5idx);
+  assert.ok(
+    after.includes("skill") || after.includes("SKILL"),
+    "Iteration 000005 section must mention the skill capability"
+  );
+});
+
+// AC04: typecheck / lint passes (node --check on zikon.js; skill index is also JS)
+test("IT-000005/US-004-AC04: node --check passes for skill index.js", () => {
+  const skillIndex = path.resolve(ROOT, ".agents", "skills", "zikon", "index.js");
+  const result = spawnSync("node", ["--check", skillIndex], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  assert.equal(result.status, 0, `Syntax error in skill index.js:\n${result.stderr}`);
+});

@@ -1,0 +1,158 @@
+{
+  "goals": [
+    "Provide a skill file that conforms to the Vercel Labs `skills` schema so AI agents discover and use Zikon automatically.",
+    "Allow any developer or agent to install the skill in one command: `npx skills add zikon`.",
+    "Ensure both automated agent invocation and manual human use (`/zikon \"<prompt>\"`) work without extra setup."
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Skill interface definition",
+      "description": "As a developer or AI agent, I want a skill file that declares Zikon's typed parameters so that I know exactly what inputs are accepted and what output to expect.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-001-AC01",
+          "text": "`.agents/skills/zikon/SKILL.md` exists and follows the Vercel Labs `skills` file schema."
+        },
+        {
+          "id": "US-001-AC02",
+          "text": "File declares the following typed parameters: `prompt` (string, required), `model` (string, optional, default `z-image-turbo`), `style` (string, optional), `output_dir` (string, optional)."
+        },
+        {
+          "id": "US-001-AC03",
+          "text": "File documents the output contract: a JSON object with fields `prompt`, `model`, `seed`, `png_path`, `svg_path`, `svg_inline`."
+        },
+        {
+          "id": "US-001-AC04",
+          "text": "File includes a usage example showing a minimal invocation (`/zikon \"rocket icon\"`)."
+        },
+        {
+          "id": "US-001-AC05",
+          "text": "Typecheck / lint passes (node --check on any JS, python3 -m py_compile on any Python added)."
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "Installation via Vercel Labs skills tooling",
+      "description": "As a developer, I want to install the Zikon skill with `npx skills add zikon` so that it is available in my AI agent environment without cloning the repository.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-002-AC01",
+          "text": "The skill is registered / reachable in a form that `npx skills add zikon` (Vercel Labs `@vercel/skill` CLI) can discover and install."
+        },
+        {
+          "id": "US-002-AC02",
+          "text": "After installation, the skill appears in the agent's skill list and `/zikon` is a valid invocation."
+        },
+        {
+          "id": "US-002-AC03",
+          "text": "Any required `package.json` or manifest fields (name, version, description, main) are present and correct."
+        },
+        {
+          "id": "US-002-AC04",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Agent invocation returns usable SVG",
+      "description": "As an AI agent or human developer, I want to invoke `/zikon \"<prompt>\"` so that I receive a JSON result containing `svg_inline` that I can embed directly in markup without additional steps.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-003-AC01",
+          "text": "Running `/zikon \"rocket icon\"` (or equivalent `node cli/zikon.js \"rocket icon\"`) exits with code `0`."
+        },
+        {
+          "id": "US-003-AC02",
+          "text": "Stdout contains exactly one JSON object with all six required fields (`prompt`, `model`, `seed`, `png_path`, `svg_path`, `svg_inline`)."
+        },
+        {
+          "id": "US-003-AC03",
+          "text": "`svg_inline` is a non-empty string starting with `<svg`."
+        },
+        {
+          "id": "US-003-AC04",
+          "text": "Optional parameters (`--model`, `--style`, `--output-dir`) are forwarded correctly when provided."
+        },
+        {
+          "id": "US-003-AC05",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Installation and usage documentation",
+      "description": "As a developer or AI agent, I want updated documentation so that I can install and use the skill without reading source code.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-004-AC01",
+          "text": "`README.md` contains a \"Skills\" section describing `npx skills add zikon` and the `/zikon` invocation syntax."
+        },
+        {
+          "id": "US-004-AC02",
+          "text": "`AGENTS.md` is updated to reference the skill file location (`.agents/skills/zikon/SKILL.md`) and invocation pattern."
+        },
+        {
+          "id": "US-004-AC03",
+          "text": "`.agents/PROJECT_CONTEXT.md` lists the skill under Implemented Capabilities for iteration 000005."
+        },
+        {
+          "id": "US-004-AC04",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Integration test — agent generates icon mid-task",
+      "description": "As a developer verifying the skill, I want an integration test that simulates an agent invoking Zikon in a real web project directory so that I can confirm the end-to-end flow works without manual steps.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-005-AC01",
+          "text": "A test script (e.g. `tests/test_skill_integration.js` or a section in the existing `tests/test_zikon.js`) exists that:"
+        },
+        {
+          "id": "US-005-AC02",
+          "text": "Test can be run with `node tests/test_skill_integration.js` (or equivalent) and passes."
+        },
+        {
+          "id": "US-005-AC03",
+          "text": "Typecheck / lint passes."
+        }
+      ]
+    }
+  ],
+  "functionalRequirements": [
+    {
+      "id": "FR-1",
+      "description": "The skill file MUST conform to the Vercel Labs `skills` schema (fields: name, description, parameters, returns, examples)."
+    },
+    {
+      "id": "FR-2",
+      "description": "All four parameters (`prompt`, `model`, `style`, `output_dir`) MUST be declared with types and descriptions; `prompt` is required, the rest optional."
+    },
+    {
+      "id": "FR-3",
+      "description": "The skill MUST be installable via `npx skills add ./path/to/skill` (local path) — no npm publishing required; the manifest must be a local directory or file path discoverable by the Vercel Labs `@vercel/skill` tooling."
+    },
+    {
+      "id": "FR-4",
+      "description": "Invoking the skill MUST ultimately delegate to `node cli/zikon.js` (or the installed `zikon` shim) and return its stdout JSON unchanged."
+    },
+    {
+      "id": "FR-5",
+      "description": "`svg_inline` in the returned JSON MUST be a non-empty string beginning with `<svg`."
+    },
+    {
+      "id": "FR-6",
+      "description": "Documentation changes MUST cover `README.md`, `AGENTS.md`, and `.agents/PROJECT_CONTEXT.md`."
+    },
+    {
+      "id": "FR-7",
+      "description": "The integration test MUST exercise the full pipeline (generate + trace) and assert on `svg_inline`."
+    }
+  ]
+}

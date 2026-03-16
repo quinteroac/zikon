@@ -36,31 +36,32 @@ Goal: a single `zikon` command that orchestrates the full end-to-end pipeline.
 
 ---
 
-## [ ] Iteration 4 — Zikon build package
+## [X] Iteration 4 — Zikon build package
 
 Goal: cross-platform build package using Bun that ships the CLI and scripts with a one-command installer.
 
-- [ ] Create Bun-based build pipeline that packages `cli/` + `scripts/` for Linux, macOS, and Windows
-- [ ] Add `zikon install` command in the CLI
-- [ ] `zikon install` sets up runtime dependencies (`uv` Python environment + Node packages for tracer)
-- [ ] Default installation directory is `~/.zikon` (or OS-equivalent user home location)
-- [ ] If user passes `--instalation-path <path>`, install everything in that explicit location
-- [ ] Ensure generated install layout is self-contained and usable by subsequent `zikon` commands
-- [ ] Installation and usage documentation for all supported OSesa
-- [ ] Integration test: fresh machine setup → `zikon install` → successful end-to-end PNG+SVG generation
-- [ ] **Done when:** user can run `zikon install` and immediately use `zikon` without manual dependency setup
+- [X] Create Bun-based build pipeline that packages `cli/` + `scripts/` for Linux, macOS, and Windows
+- [X] Add `zikon install` command in the CLI
+- [X] `zikon install` sets up runtime dependencies (`uv` Python environment + Node packages for tracer)
+- [X] Default installation directory is `~/.zikon` (or OS-equivalent user home location)
+- [X] If user passes `--instalation-path <path>`, install everything in that explicit location
+- [X] Ensure generated install layout is self-contained and usable by subsequent `zikon` commands
+- [X] Installation and usage documentation for all supported OSesa
+- [X] Integration test: fresh machine setup → `zikon install` → successful end-to-end PNG+SVG generation
+- [X] **Done when:** user can run `zikon install` and immediately use `zikon` without manual dependency setup
 
 ---
 
-## [ ] Iteration 5 — Installable Agent Skill
+## [X] Iteration 5 — Installable Agent Skill
 
-Goal: installable `.md` skill for Claude Code and Codex that exposes the pipeline as an agent tool.
+Goal: installable `.md` skill for AI Agents that exposes the pipeline as an agent tool.
 
-- [ ] Define skill interface: typed parameters (`prompt`, `model`, `style`, `output_dir`)
-- [ ] Skill invokes the Iteration 3 CLI as a subprocess
-- [ ] Installation and usage documentation
-- [ ] Integration test: agent generates an icon mid-task in a real web project
-- [ ] **Done when:** Claude Code can invoke `/zikon` and receive a usable SVG without manual steps
+- [X] Define skill interface: typed parameters (`prompt`, `model`, `style`, `output_dir`)
+- [X] AI Agents uses skills to invoke the zikon to create icons or web assets
+- [X] Installation and usage documentation
+- [X] Zikon Skills can be installed using `npx skills add https://github.com/quinteroac/zikon/zikon-skills`
+- [X] Integration test: agent generates an icon mid-task in a real web project
+- [X] **Done when:** AI Agents can invoke `/zikon` and receive a usable SVG without manual steps
 
 ---
 
