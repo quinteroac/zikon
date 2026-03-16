@@ -1,0 +1,169 @@
+{
+  "goals": [
+    "Allow callers to request one or more SVG output sizes via a `--size` flag.",
+    "Automatically optimize every produced SVG with SVGO.",
+    "Surface all size variants in the JSON output via an `svg_files` array.",
+    "Keep `svg_path` / `svg_inline` top-level fields populated when only one size is requested (backward compatibility).",
+    "Expose the `size` parameter in the agent skill.",
+    "Document the new flag in all relevant docs."
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "`--size` flag on the CLI",
+      "description": "As a developer, I want to run `zikon \"app icon\" --size 512,24,18` so that I receive one PNG and three size-specific, SVGO-optimised SVG files in a single command.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-001-AC01",
+          "text": "`zikon.js` accepts `--size <px>[,<px>...]` (comma-separated integers); default is `1024`."
+        },
+        {
+          "id": "US-001-AC02",
+          "text": "PNG generation always runs at 1024×1024 regardless of the requested sizes."
+        },
+        {
+          "id": "US-001-AC03",
+          "text": "`imagetracerjs` traces the PNG once; the resulting SVG is the source for all size variants."
+        },
+        {
+          "id": "US-001-AC04",
+          "text": "For each requested size, the pipeline rewrites the SVG `width`, `height`, and `viewBox` attributes and runs SVGO, producing a separate file (e.g. `icon_512.svg`, `icon_24.svg`, `icon_18.svg`)."
+        },
+        {
+          "id": "US-001-AC05",
+          "text": "Output files are written to `--output-dir` (existing behaviour)."
+        },
+        {
+          "id": "US-001-AC06",
+          "text": "Exit codes remain unchanged: `0` success · `1` PNG error · `2` SVG error · `3` invalid args."
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "Updated JSON output with `svg_files` array",
+      "description": "As a developer or agent, I want the JSON output to list all produced SVGs so that I can programmatically access every size variant.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-002-AC01",
+          "text": "JSON stdout contains an `svg_files` array; each element is `{ \"size\": <int>, \"svg_path\": \"<abs path>\", \"svg_inline\": \"<svg …/>\" }`."
+        },
+        {
+          "id": "US-002-AC02",
+          "text": "When `--size` is a single value (including the default `1024`), `svg_path` and `svg_inline` top-level fields are still present and equal the single entry in `svg_files` (backward compatibility)."
+        },
+        {
+          "id": "US-002-AC03",
+          "text": "When multiple sizes are requested, top-level `svg_path` / `svg_inline` are omitted or `null`."
+        },
+        {
+          "id": "US-002-AC04",
+          "text": "JSON is the only content on stdout; all progress logs go to stderr."
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "SVGO as a Node dependency",
+      "description": "As a maintainer, I want `svgo` declared in `cli/package.json` so that it is installed automatically with `npm install`.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-003-AC01",
+          "text": "`svgo` appears in `dependencies` in `cli/package.json`."
+        },
+        {
+          "id": "US-003-AC02",
+          "text": "`npm install` in `cli/` completes without errors."
+        },
+        {
+          "id": "US-003-AC03",
+          "text": "SVGO is invoked programmatically (not via shell) inside `zikon.js`."
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "`size` parameter in the agent skill",
+      "description": "As an AI agent, I want to pass a `size` parameter to `/zikon` so that I can request multi-size SVGs without leaving the agent context.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-004-AC01",
+          "text": "`zikon-skills/index.js` `run(params)` accepts an optional `size` string (e.g. `\"512,24,18\"`)."
+        },
+        {
+          "id": "US-004-AC02",
+          "text": "When `size` is provided, it is forwarded as `--size <value>` to `node cli/zikon.js`."
+        },
+        {
+          "id": "US-004-AC03",
+          "text": "The returned object includes the `svg_files` array from the JSON output."
+        },
+        {
+          "id": "US-004-AC04",
+          "text": "Skill invocation `{ prompt: \"app icon\", size: \"512,24,18\" }` produces correct multi-size output."
+        }
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Documentation update",
+      "description": "As a user or agent, I want the docs to mention the `--size` flag so that I can discover and use it without reading source code.",
+      "acceptanceCriteria": [
+        {
+          "id": "US-005-AC01",
+          "text": "`README.md` CLI usage section shows `--size` flag with example (`--size 512,24,18`)."
+        },
+        {
+          "id": "US-005-AC02",
+          "text": "`AGENTS.md` CLI interface table updated to include `--size`."
+        },
+        {
+          "id": "US-005-AC03",
+          "text": "`.agents/PROJECT_CONTEXT.md` lists US-001 through US-005 of iteration 000006 under Implemented Capabilities."
+        },
+        {
+          "id": "US-005-AC04",
+          "text": "Visually verified in a browser or markdown renderer that the docs render correctly."
+        }
+      ]
+    }
+  ],
+  "functionalRequirements": [
+    {
+      "id": "FR-1",
+      "description": "`zikon.js` parses `--size` as a comma-separated list of positive integers; invalid values (non-numeric, zero, negative) must cause exit code `3`."
+    },
+    {
+      "id": "FR-2",
+      "description": "PNG generation resolution stays fixed at 1024×1024; `--size` only controls SVG output dimensions."
+    },
+    {
+      "id": "FR-3",
+      "description": "The base SVG is produced by a single `imagetracerjs` pass on the 1024×1024 PNG."
+    },
+    {
+      "id": "FR-4",
+      "description": "For each requested size, a new SVG file is written with `width`, `height` set to `<size>px` and `viewBox=\"0 0 <size> <size>\"`, then passed through SVGO before writing to disk."
+    },
+    {
+      "id": "FR-5",
+      "description": "Output SVG filenames follow the pattern `<slug>_<size>.svg` (e.g. `minimalist_rocket_icon_512.svg`)."
+    },
+    {
+      "id": "FR-6",
+      "description": "`svg_files` array is always present in the JSON output; it contains one entry per requested size."
+    },
+    {
+      "id": "FR-7",
+      "description": "Top-level `svg_path` and `svg_inline` are populated only when exactly one size is requested (default behaviour preserved)."
+    },
+    {
+      "id": "FR-8",
+      "description": "`svgo` must be invoked programmatically via its Node.js API, not via a child process shell call."
+    },
+    {
+      "id": "FR-9",
+      "description": "The skill `run(params)` function passes `size` to the CLI only when the parameter is non-empty/non-null."
+    }
+  ]
+}
