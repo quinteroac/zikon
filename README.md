@@ -236,3 +236,17 @@ Once the skill is installed, any compatible agent can invoke:
 ```
 
 The skill wraps the CLI and returns the structured JSON output directly into the agent's context.
+
+## Acknowledgements
+
+Zikon builds on several excellent open source projects:
+
+- [Diffusers](https://github.com/huggingface/diffusers) for local diffusion pipelines.
+- [PyTorch](https://github.com/pytorch/pytorch) for model execution across CPU, CUDA, ROCm, and MPS backends.
+- [Transformers](https://github.com/huggingface/transformers) and [Accelerate](https://github.com/huggingface/accelerate) for model/runtime support.
+- [Pillow](https://python-pillow.org/) for image processing in the generator pipeline.
+- [ImageTracerJS](https://github.com/jankovicsandras/imagetracerjs) for PNG-to-SVG vector tracing.
+- [SVGO](https://github.com/svg/svgo) for SVG optimization.
+- [Commander.js](https://github.com/tj/commander.js) for the CLI interface.
+- [uv](https://github.com/astral-sh/uv) for Python environment and dependency management.
+- [Bun](https://github.com/oven-sh/bun) for packaging and distributable installer builds.
