@@ -36,7 +36,7 @@ Python scripts are grouped under `scripts/`, each as a standalone `uv` project. 
 
 **Unified CLI (current):**
 ```bash
-node cli/zikon.js "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>]
+node cli/zikon.js "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>] [--size <px>[,<px>...]]
 ```
 
 **Installer command (current):**
@@ -46,7 +46,7 @@ node cli/zikon.js install [--installation-path <path>]
 
 **Installed command (after `zikon install`):**
 ```bash
-zikon "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>]
+zikon "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>] [--size <px>[,<px>...]]
 ```
 
 **Python generate script (standalone):**

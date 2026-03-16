@@ -126,20 +126,20 @@ Open the repository on GitHub and confirm this Installation section renders as:
 After installation, run the global command:
 
 ```bash
-zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets --size 512,24,18
 ```
 
 If you prefer to run directly from the repository checkout:
 
 ```bash
 cd cli && npm install            # install commander dependency
-node cli/zikon.js "<prompt>" --model <model> --output-dir <path>
+node cli/zikon.js "<prompt>" --model <model> --output-dir <path> --size <px>[,<px>...]
 ```
 
 Example:
 
 ```bash
-node cli/zikon.js "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+node cli/zikon.js "minimalist rocket icon" --model z-image-turbo --output-dir ./assets --size 512,24,18
 ```
 
 All flags:
@@ -148,6 +148,7 @@ All flags:
 node cli/zikon.js "minimalist rocket icon" \
   --model sdxl \
   --output-dir ./assets \
+  --size 512,24,18 \
   --seed 42 \
   --style "flat minimalist"
 ```
