@@ -4,6 +4,7 @@
   "description": "Unified CLI orchestrator for the logo generation pipeline",
   "main": "zikon.js",
   "dependencies": {
-    "commander": "^14.0.0"
+    "commander": "^14.0.0",
+    "svgo": "^3.3.2"
   }
 }
