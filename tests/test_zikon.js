@@ -1495,3 +1495,76 @@ test("IT-000006/US-001-AC06: exit codes are unchanged; invalid --size exits with
     fs.rmSync(tmpDir, { recursive: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Iteration 000006 - US-002: Updated JSON output with svg_files array
+// ---------------------------------------------------------------------------
+
+test("IT-000006/US-002-AC01: stdout JSON includes svg_files entries with size, svg_path, and svg_inline", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    const result = runZikon(["app icon", "--size", "512,24,18", "--output-dir", tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const payload = JSON.parse(result.stdout.trim());
+
+    assert.ok(Array.isArray(payload.svg_files), "svg_files must be an array");
+    assert.equal(payload.svg_files.length, 3, "svg_files must include one entry per requested size");
+    for (const expectedSize of [512, 24, 18]) {
+      const entry = payload.svg_files.find((item) => item.size === expectedSize);
+      assert.ok(entry, `missing svg_files entry for size ${expectedSize}`);
+      assert.equal(typeof entry.size, "number", "svg_files[].size must be a number");
+      assert.ok(path.isAbsolute(entry.svg_path), `svg_path must be absolute: ${entry.svg_path}`);
+      assert.ok(entry.svg_inline.includes("<svg"), "svg_inline must contain SVG markup");
+      assert.ok(fs.existsSync(entry.svg_path), `svg_path must exist on disk: ${entry.svg_path}`);
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+test("IT-000006/US-002-AC02: single-size output keeps top-level svg_path/svg_inline equal to svg_files[0]", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    for (const size of ["1024", "256"]) {
+      const result = runZikon(["app icon", "--size", size, "--output-dir", tmpDir]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      const payload = JSON.parse(result.stdout.trim());
+      assert.equal(payload.svg_files.length, 1, `expected one svg_files entry for --size ${size}`);
+      assert.equal(payload.svg_path, payload.svg_files[0].svg_path, "svg_path must match svg_files[0].svg_path");
+      assert.equal(payload.svg_inline, payload.svg_files[0].svg_inline, "svg_inline must match svg_files[0].svg_inline");
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+test("IT-000006/US-002-AC03: multi-size output sets top-level svg_path/svg_inline to null", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    const result = runZikon(["app icon", "--size", "512,24", "--output-dir", tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const payload = JSON.parse(result.stdout.trim());
+    assert.equal(payload.svg_files.length, 2, "expected two svg_files entries");
+    assert.equal(payload.svg_path, null, "svg_path must be null for multi-size output");
+    assert.equal(payload.svg_inline, null, "svg_inline must be null for multi-size output");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});
+
+test("IT-000006/US-002-AC04: stdout contains only JSON while progress logs are emitted to stderr", () => {
+  const tmpDir = makeTmpDir();
+  try {
+    const result = runZikon(["app icon", "--size", "512,24", "--output-dir", tmpDir]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+    const stdoutLines = result.stdout.trim().split("\n").filter(Boolean);
+    assert.equal(stdoutLines.length, 1, "stdout must contain exactly one JSON line");
+    assert.doesNotThrow(() => JSON.parse(stdoutLines[0]), "stdout line must be valid JSON");
+    assert.ok(!result.stdout.includes("[zikon]"), "stdout must not contain progress logs");
+    assert.ok(result.stderr.includes("[zikon] Generating PNG"), "stderr must include progress logs");
+    assert.ok(result.stderr.includes("[zikon] Tracing PNG to SVG"), "stderr must include trace logs");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true });
+  }
+});

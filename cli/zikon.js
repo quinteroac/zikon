@@ -790,7 +790,8 @@ async function main() {
     process.stderr.write(`[zikon] SVG post-processing failed: ${err.message}\n`);
     process.exit(EXIT_TRACE_ERROR);
   }
-  const primary_svg = svg_files[0];
+  const primary_svg = svg_files[0] || null;
+  const has_single_svg_variant = svg_files.length === 1;
 
   // Emit final JSON to stdout (only line on stdout)
   const result = {
@@ -798,8 +799,8 @@ async function main() {
     model: opts.model,
     seed: genPayload.seed,
     png_path: pngPath,
-    svg_path: primary_svg.svg_path,
-    svg_inline: primary_svg.svg_inline,
+    svg_path: has_single_svg_variant ? primary_svg.svg_path : null,
+    svg_inline: has_single_svg_variant ? primary_svg.svg_inline : null,
     svg_files,
   };
   process.stdout.write(JSON.stringify(result) + "\n");
