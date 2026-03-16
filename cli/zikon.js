@@ -5,7 +5,7 @@
  * zikon.js — end-to-end logo pipeline
  *
  * Usage:
- *   node cli/zikon.js "<prompt>" [--model <id>] [--output-dir <dir>] [--seed <int>] [--style <str>]
+ *   node cli/zikon.js "<prompt>" [--model <id>] [--output-dir <dir>] [--seed <int>] [--style <str>] [--size <px>[,<px>...]]
  *
  * stdout  : single JSON object (prompt, model, seed, png_path, svg_path, svg_inline)
  * stderr  : progress and debug output
@@ -20,6 +20,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { Command } = require("commander");
+const { optimize: optimize_svg } = require("svgo");
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -28,6 +29,7 @@ const EXIT_SUCCESS = 0;
 const EXIT_GENERATION_ERROR = 1;
 const EXIT_TRACE_ERROR = 2;
 const EXIT_INVALID_ARGUMENTS = 3;
+const DEFAULT_SVG_SIZE = 1024;
 
 // In dev mode (node cli/zikon.js), __dirname is the cli/ directory and scripts/
 // lives one level up at the project root.  When compiled with `bun build --compile`,
@@ -536,6 +538,9 @@ function install_runtime(install_dir, platform) {
  * @returns {Promise<string>}  SVG markup string.
  */
 function pngToSvg(pngPath) {
+  if (process.env.ZIKON_TEST_TRACE_COUNT_FILE) {
+    fs.appendFileSync(process.env.ZIKON_TEST_TRACE_COUNT_FILE, "trace\n", "utf8");
+  }
   return new Promise((resolve, reject) => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const ImageTracer = require(IMAGETRACER_JS);
@@ -556,6 +561,75 @@ function pngToSvg(pngPath) {
       resolve(svgString);
     });
   });
+}
+
+function parse_size_list(raw_sizes) {
+  if (typeof raw_sizes !== "string" || raw_sizes.trim() === "") {
+    throw new Error("--size must be a comma-separated list of integers.");
+  }
+
+  const parsed = [];
+  const seen = new Set();
+  for (const token of raw_sizes.split(",")) {
+    const trimmed = token.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      throw new Error(`Invalid --size value "${trimmed}". Expected positive integers.`);
+    }
+    const value = Number.parseInt(trimmed, 10);
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`Invalid --size value "${trimmed}". Expected positive integers.`);
+    }
+    if (!seen.has(value)) {
+      parsed.push(value);
+      seen.add(value);
+    }
+  }
+
+  if (parsed.length === 0) {
+    throw new Error("--size must include at least one integer.");
+  }
+  return parsed;
+}
+
+function rewrite_svg_dimensions(svg_markup, size) {
+  const open_tag_match = svg_markup.match(/<svg\b[^>]*>/i);
+  if (!open_tag_match) {
+    throw new Error("Tracer returned invalid SVG content.");
+  }
+  const open_tag = open_tag_match[0];
+  const without_dimensions = open_tag
+    .replace(/\swidth=(?:"[^"]*"|'[^']*')/gi, "")
+    .replace(/\sheight=(?:"[^"]*"|'[^']*')/gi, "")
+    .replace(/\sviewBox=(?:"[^"]*"|'[^']*')/gi, "");
+  const resized_tag = without_dimensions.replace(
+    /^<svg\b/i,
+    `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"`
+  );
+  return svg_markup.replace(open_tag, resized_tag);
+}
+
+function optimize_svg_markup(svg_markup, output_path) {
+  const result = optimize_svg(svg_markup, {
+    path: output_path,
+    multipass: true,
+    plugins: [
+      {
+        name: "preset-default",
+        params: {
+          overrides: {
+            removeViewBox: false,
+          },
+        },
+      },
+    ],
+  });
+  if (result.error) {
+    throw new Error(result.error);
+  }
+  if (process.env.ZIKON_TEST_SVGO_COUNT_FILE) {
+    fs.appendFileSync(process.env.ZIKON_TEST_SVGO_COUNT_FILE, "svgo\n", "utf8");
+  }
+  return result.data;
 }
 
 // ---------------------------------------------------------------------------
@@ -599,6 +673,11 @@ async function main() {
     .option("--output-dir <dir>", "directory to write output files", "./out")
     .option("--seed <int>", "integer seed for deterministic generation")
     .option("--style <str>", "style preset to apply to the prompt")
+    .option(
+      "--size <px>[,<px>...]",
+      "comma-separated output SVG sizes in px (PNG generation remains 1024x1024)",
+      String(DEFAULT_SVG_SIZE)
+    )
     .configureOutput({
       writeOut: (str) => process.stderr.write(str),
       writeErr: (str) => process.stderr.write(str),
@@ -616,6 +695,14 @@ async function main() {
 
   const opts = program.opts();
   const prompt = program.args[0];
+  let requested_sizes;
+  try {
+    requested_sizes = parse_size_list(opts.size);
+  } catch (err) {
+    process.stderr.write(`${err.message}\n`);
+    program.outputHelp();
+    process.exit(EXIT_INVALID_ARGUMENTS);
+  }
 
   // Resolve output directory
   const outputDir = path.resolve(opts.outputDir);
@@ -630,7 +717,6 @@ async function main() {
       .slice(0, 60) || "output";
 
   const pngPath = path.join(outputDir, `${safeName}.png`);
-  const svgPath = path.join(outputDir, `${safeName}.svg`);
 
   // Build the effective prompt: append style hint if provided (US-004)
   const effectivePrompt = opts.style ? `${prompt}, ${opts.style}` : prompt;
@@ -673,18 +759,39 @@ async function main() {
     process.exit(EXIT_GENERATION_ERROR);
   }
 
-  // Trace PNG → SVG
+  // Trace PNG → SVG once, then derive all requested size variants from this source.
   process.stderr.write("[zikon] Tracing PNG to SVG...\n");
-  let svgInline;
+  let tracedSvgInline;
   try {
-    svgInline = await pngToSvg(pngPath);
+    tracedSvgInline = await pngToSvg(pngPath);
   } catch (err) {
     process.stderr.write(`[zikon] SVG tracing failed: ${err.message}\n`);
     process.exit(EXIT_TRACE_ERROR);
   }
 
-  // Write SVG file
-  fs.writeFileSync(svgPath, svgInline, "utf8");
+  let svg_files;
+  try {
+    svg_files = requested_sizes.map((size) => {
+      const output_name =
+        requested_sizes.length === 1 && size === DEFAULT_SVG_SIZE
+          ? `${safeName}.svg`
+          : `${safeName}_${size}.svg`;
+      const sized_path = path.join(outputDir, output_name);
+      const resized = rewrite_svg_dimensions(tracedSvgInline, size);
+      const optimized = optimize_svg_markup(resized, sized_path);
+      fs.writeFileSync(sized_path, optimized, "utf8");
+      return {
+        size,
+        svg_path: sized_path,
+        svg_inline: optimized,
+      };
+    });
+  } catch (err) {
+    process.stderr.write(`[zikon] SVG post-processing failed: ${err.message}\n`);
+    process.exit(EXIT_TRACE_ERROR);
+  }
+  const primary_svg = svg_files[0] || null;
+  const has_single_svg_variant = svg_files.length === 1;
 
   // Emit final JSON to stdout (only line on stdout)
   const result = {
@@ -692,8 +799,9 @@ async function main() {
     model: opts.model,
     seed: genPayload.seed,
     png_path: pngPath,
-    svg_path: svgPath,
-    svg_inline: svgInline,
+    svg_path: has_single_svg_variant ? primary_svg.svg_path : null,
+    svg_inline: has_single_svg_variant ? primary_svg.svg_inline : null,
+    svg_files,
   };
   process.stdout.write(JSON.stringify(result) + "\n");
 }

@@ -73,6 +73,13 @@
 - **US-003** Agent invocation returns usable SVG — `/zikon "<prompt>"` runs the full pipeline and surfaces `svg_inline` directly in the agent context
 - **US-004** Documentation — `README.md` has a "Skills" section with install URL and `/zikon` syntax; `AGENTS.md` references `zikon-skills/SKILL.md` and invocation pattern; `.agents/PROJECT_CONTEXT.md` lists skill under Implemented Capabilities for iteration 000005
 
+### Iteration 000006
+- **US-001** Multi-size SVG output — unified CLI accepts `--size <px>[,<px>...]`; PNG remains 1024x1024, tracing runs once, and one SVG is emitted per requested size
+- **US-002** Updated JSON contract — output includes `svg_files` (`size`, `svg_path`, `svg_inline`); single-size keeps top-level `svg_path`/`svg_inline`, multi-size sets both to `null`
+- **US-003** SVG optimization dependency — `cli/package.json` declares `svgo`; `cli/zikon.js` optimizes SVG markup via the Node API (no shell `svgo` subprocess)
+- **US-004** Skill size support — `zikon-skills/index.js` accepts `size`, forwards `--size` to CLI, and returns multi-size `svg_files` in agent responses
+- **US-005** Documentation update — `README.md` usage and `AGENTS.md` CLI interface document `--size`, including `--size 512,24,18` examples
+
 ## Installation Notes
 - Default install directory: `~/.zikon` on Unix-like systems; `%USERPROFILE%\\.zikon` on Windows
 - Custom install directory: use `--installation-path <path>`

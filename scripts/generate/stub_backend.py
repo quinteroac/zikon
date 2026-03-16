@@ -15,10 +15,13 @@ if TYPE_CHECKING:
     from generate import PipelineConfig
 
 
+DEFAULT_IMAGE_SIZE = 1024
+
+
 class StubImage:
     """Duck-typed image object with a PIL-compatible save() interface."""
 
-    def __init__(self, rgb: tuple[int, int, int], width: int = 256, height: int = 256) -> None:
+    def __init__(self, rgb: tuple[int, int, int], width: int = DEFAULT_IMAGE_SIZE, height: int = DEFAULT_IMAGE_SIZE) -> None:
         self.rgb = rgb
         self.width = width
         self.height = height
@@ -36,7 +39,12 @@ def _chunk(chunk_type: bytes, payload: bytes) -> bytes:
     )
 
 
-def _write_png(path: Path, rgb: tuple[int, int, int], width: int = 256, height: int = 256) -> None:
+def _write_png(
+    path: Path,
+    rgb: tuple[int, int, int],
+    width: int = DEFAULT_IMAGE_SIZE,
+    height: int = DEFAULT_IMAGE_SIZE,
+) -> None:
     """Write a valid 8-bit RGB PNG without external dependencies."""
     signature = b"\x89PNG\r\n\x1a\n"
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)

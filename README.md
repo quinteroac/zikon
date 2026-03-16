@@ -19,19 +19,46 @@ prompt
                     └─▶ output.svg + result.json
 ```
 
+## System Requirements
+
+### Operating system
+
+| OS | Versions |
+|---|---|
+| Linux | Any modern x86-64 distribution (Ubuntu 22.04+, Fedora 38+, etc.) |
+| macOS | 12 Monterey or later (Apple Silicon and Intel) |
+| Windows | Windows 10 22H2 or later (x86-64) |
+
+### Hardware
+
+| Component | Minimum | Notes |
+|---|---|---|
+| CPU | x86-64 or Apple Silicon | CPU-only inference is supported but slow |
+| RAM | 8 GB | 16 GB recommended for Z-Image |
+| Disk | 15 GB free | Models are downloaded on first use (~7 GB for SDXL, ~3 GB for z-image-turbo) |
+| GPU | Optional | See GPU backends below |
+
+**GPU backends** — the installer auto-detects and configures the right PyTorch variant:
+
+| GPU | VRAM | Backend |
+|---|---|---|
+| NVIDIA (CUDA) | ≥ 4 GB | `cuda` — full speed |
+| AMD (ROCm) | ≥ 4 GB | `rocm` — Linux only |
+| Apple Silicon | shared | `mps` — Metal Performance Shaders |
+| None / < 4 GB | — | `cpu` — Don't work |
+
+### Software
+
+| Tool | Version | Required for |
+|---|---|---|
+| [Node.js](https://nodejs.org/en/download) | ≥ 18 LTS | CLI runtime, SVG tracer |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | latest | Python dependency management |
+| [Python](https://www.python.org/downloads/) | ≥ 3.11 | Image generation (managed by uv) |
+| [Bun](https://bun.sh/docs/installation) | latest | Building from source only |
+
+> **Note:** Python does not need to be installed manually — `uv` will provision the correct version automatically. Node.js and `uv` are the only hard prerequisites for end-users.
+
 ## Installation
-
-Iteration 4 adds an installer flow to the CLI: `zikon install`. In the repository, the installer is currently invoked through `node cli/zikon.js install`; the cross-platform Bun build is the packaging target for this iteration.
-
-### Prerequisites
-
-Install these tools before running Zikon:
-
-| OS | Bun | Node.js | uv |
-|---|---|---|---|
-| Linux | [bun.sh installation docs](https://bun.sh/docs/installation) | [Node.js Linux install docs](https://nodejs.org/en/download/package-manager) | [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) |
-| macOS | [bun.sh installation docs](https://bun.sh/docs/installation) | [Node.js macOS installers](https://nodejs.org/en/download) | [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) |
-| Windows | [bun.sh installation docs](https://bun.sh/docs/installation) | [Node.js Windows installers](https://nodejs.org/en/download) | [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) |
 
 ### Linux / macOS — binary release
 
@@ -126,20 +153,20 @@ Open the repository on GitHub and confirm this Installation section renders as:
 After installation, run the global command:
 
 ```bash
-zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets --size 512,24,18
 ```
 
 If you prefer to run directly from the repository checkout:
 
 ```bash
 cd cli && npm install            # install commander dependency
-node cli/zikon.js "<prompt>" --model <model> --output-dir <path>
+node cli/zikon.js "<prompt>" --model <model> --output-dir <path> --size <px>[,<px>...]
 ```
 
 Example:
 
 ```bash
-node cli/zikon.js "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
+node cli/zikon.js "minimalist rocket icon" --model z-image-turbo --output-dir ./assets --size 512,24,18
 ```
 
 All flags:
@@ -148,6 +175,7 @@ All flags:
 node cli/zikon.js "minimalist rocket icon" \
   --model sdxl \
   --output-dir ./assets \
+  --size 512,24,18 \
   --seed 42 \
   --style "flat minimalist"
 ```
@@ -166,63 +194,12 @@ Output (stdout):
 
 Exit codes: `0` success · `1` PNG generation error · `2` SVG tracing error · `3` invalid arguments.
 
-## Scripts
-
-Each Python script lives in its own `uv` project under `scripts/`:
-
-| Directory | Purpose |
-|---|---|
-| `scripts/generate/` | PNG generation via diffusers (Python + uv) |
-| `scripts/trace/` | PNG → SVG tracing via imagetracerjs (Node.js) |
-
-### scripts/generate (standalone)
-
-```bash
-cd scripts/generate
-uv sync                          # install dependencies
-uv run generate.py --prompt "minimalist rocket icon" --model z-image-turbo --output output.png
-```
-
-Run Python tests:
-
-```bash
-cd scripts/generate
-uv run python -m unittest discover -s tests
-```
-
-Run Node tests (from project root):
-
-```bash
-node --test tests/test_zikon.js   # from project root
-```
-
-## Stack
-
-| Layer | Tool |
-|---|---|
-| Image generation | Python · `diffusers` · `torch` |
-| PNG → SVG tracing | Node.js · `imagetracerjs` |
-| CLI orchestration | Node.js |
-| Distribution build | Bun (cross-platform packaging target) |
-| Agent interface | Installable skill (`.md`) |
-
 ## Models
 
 | ID | Description |
 |---|---|
 | `z-image-turbo` | Fast, low-step generation |
-| `sdxl` | Higher quality, more detail |
-
-## Roadmap
-
-| Iteration | Goal | Status |
-|---|---|---|
-| 1 | Python generation pipeline | done |
-| 2 | PNG → SVG conversion | done |
-| 3 | Unified CLI | done |
-| 4 | Build package + installer | done |
-
-See [ROADMAP.md](./ROADMAP.md) for full detail.
+| `sdxl` | Easy to find fine tunes, more step generation |
 
 ## Skills
 

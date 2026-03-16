@@ -36,7 +36,7 @@ Python scripts are grouped under `scripts/`, each as a standalone `uv` project. 
 
 **Unified CLI (current):**
 ```bash
-node cli/zikon.js "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>]
+node cli/zikon.js "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>] [--size <px>[,<px>...]]
 ```
 
 **Installer command (current):**
@@ -46,7 +46,7 @@ node cli/zikon.js install [--installation-path <path>]
 
 **Installed command (after `zikon install`):**
 ```bash
-zikon "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>]
+zikon "<prompt>" [--model z-image-turbo|sdxl|<hf-repo>] [--output-dir <path>] [--style <hint>] [--seed <int>] [--size <px>[,<px>...]]
 ```
 
 **Python generate script (standalone):**
@@ -69,6 +69,15 @@ Output is always a single JSON object on stdout:
 ```
 
 Exit codes: `0` success · `1` PNG generation error · `2` SVG tracing error · `3` invalid arguments.
+
+**Output filename convention:**
+
+- Single size equal to the default (`1024`): file is named `<slug>.svg` (no size suffix) for backward compatibility.
+- Any other single size or multiple sizes: files are named `<slug>_<size>.svg` (e.g. `minimalist_rocket_icon_512.svg`).
+
+**Release checklist for documentation changes:**
+
+Before merging any update to `README.md`, `AGENTS.md`, or `.agents/PROJECT_CONTEXT.md`, manually verify that the file renders correctly in a Markdown renderer (e.g. GitHub preview or a local renderer) — satisfying US-005-AC04.
 
 ## Installation behavior
 

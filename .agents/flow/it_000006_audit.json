@@ -1,0 +1,57 @@
+{
+  "iteration": "000006",
+  "outcome": "follow_recommendations",
+  "executiveSummary": "Iteration 000006 is largely complete and compliant with the PRD. All five user stories are implemented and verifiable. One partial non-conformance exists in FR-5 (intentional backward-compat filename exception for default single-size). Actionable recommendations applied: Windows portability fix in zikon-skills/index.js, FR-5 naming exception documented in AGENTS.md, visual-verification reminder added to AGENTS.md release checklist. Test splitting deferred as technical debt.",
+  "verificationByFR": [
+    { "frId": "FR-1", "assessment": "comply" },
+    { "frId": "FR-2", "assessment": "comply" },
+    { "frId": "FR-3", "assessment": "comply" },
+    { "frId": "FR-4", "assessment": "comply" },
+    { "frId": "FR-5", "assessment": "partially_comply" },
+    { "frId": "FR-6", "assessment": "comply" },
+    { "frId": "FR-7", "assessment": "comply" },
+    { "frId": "FR-8", "assessment": "comply" },
+    { "frId": "FR-9", "assessment": "comply" }
+  ],
+  "verificationByUS": [
+    { "usId": "US-001", "assessment": "comply" },
+    { "usId": "US-002", "assessment": "comply" },
+    { "usId": "US-003", "assessment": "comply" },
+    { "usId": "US-004", "assessment": "comply" },
+    { "usId": "US-005", "assessment": "comply" }
+  ],
+  "minorObservations": [
+    "FR-5 backward-compat exception: single default-size (1024) uses '<slug>.svg' not '<slug>_1024.svg'; documented in AGENTS.md.",
+    "US-005-AC04 manual visual verification is not automatable; release checklist entry added to AGENTS.md.",
+    "rewrite_svg_dimensions() assumes square output; appropriate for current 1024x1024 PNG but noted for future non-square needs.",
+    "Windows portability: spawnSync('which', ['zikon']) replaced with cross-platform detection in zikon-skills/index.js.",
+    "test_zikon.js mixes multiple iteration tests; splitting deferred as technical debt."
+  ],
+  "conclusionsAndRecommendations": "Implementation meets all iteration 000006 goals. Applied fixes: Windows portability in skill, AGENTS.md documentation of FR-5 naming exception and visual-verification release checklist. Deferred: test file splitting into per-iteration files.",
+  "refactorPlan": [
+    {
+      "step": 1,
+      "title": "Fix Windows portability in zikon-skills/index.js",
+      "status": "applied",
+      "description": "Replace spawnSync('which', ['zikon']) with cross-platform detection using process.platform."
+    },
+    {
+      "step": 2,
+      "title": "Document FR-5 naming exception in AGENTS.md",
+      "status": "applied",
+      "description": "Add note that default single-size (1024) produces <slug>.svg without size suffix for backward compatibility."
+    },
+    {
+      "step": 3,
+      "title": "Add visual-verification reminder to AGENTS.md release checklist",
+      "status": "applied",
+      "description": "Add checklist entry requiring manual Markdown rendering verification before merging documentation changes."
+    },
+    {
+      "step": 4,
+      "title": "Split test_zikon.js by iteration",
+      "status": "deferred_technical_debt",
+      "description": "Extract IT-000006 tests into tests/test_zikon_it000006.js; continue pattern for future iterations."
+    }
+  ]
+}

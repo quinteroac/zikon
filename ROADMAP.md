@@ -65,7 +65,21 @@ Goal: installable `.md` skill for AI Agents that exposes the pipeline as an agen
 
 ---
 
-## [ ] Iteration 6 — Layered tracing via segmentation
+## [ ] Iteration 6 — Configurable SVG size and SVGO optimization
+
+Goal: allow callers to specify the output dimensions and automatically optimize the resulting SVG with SVGO. Currently `diffusers_backend.py` hardcodes `height=1024, width=1024`; neither `generate.py` nor `zikon.js` expose a size parameter, and there is no optimization step.
+
+- [ ] Add `--size <px>[,<px>...]` argument to `zikon.js` accepting one or more comma-separated values (e.g. `--size 512,24,18`). PNG generation stays at 1024×1024. Default: `1024`.
+- [ ] Trace the PNG once with `imagetracerjs`, then for each requested size rewrite the SVG `width`, `height`, and `viewBox` attributes and run SVGO — producing one optimised SVG file per size (e.g. `icon_512.svg`, `icon_24.svg`, `icon_18.svg`).
+- [ ] Add `svgo` as a Node dependency in `cli/`.
+- [ ] Update the JSON output to include an `svg_files` array of `{ size, svg_path, svg_inline }` objects instead of the single `svg_path`/`svg_inline` fields (keep them for backward compatibility when only one size is requested).
+- [ ] Expose `size` parameter in the agent skill (`zikon-skills/index.js`) accepting a string like `"512,24,18"`.
+- [ ] Update installation docs to mention the new `--size` flag.
+- [ ] **Done when:** `zikon "app icon" --size 512,24,18` produces one 1024×1024 PNG and three SVGO-optimised SVGs at the requested sizes, each correctly named and listed in the JSON output.
+
+---
+
+## [ ] Iteration 7 — Layered tracing via segmentation
 
 Goal: refine the tracing pipeline by segmenting the generated PNG with GroundingDINO + SAM2 before sending each region through `imagetracerjs`, producing a cleaner SVG with tighter, more controllable layers.
 
