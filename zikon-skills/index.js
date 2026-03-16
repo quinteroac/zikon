@@ -8,8 +8,8 @@
  * can discover, install, and register the skill in an AI agent environment.
  *
  * After installation `/zikon` becomes a valid agent invocation that delegates
- * to `node cli/zikon.js` and returns a JSON object with six fields:
- * prompt, model, seed, png_path, svg_path, svg_inline.
+ * to `node cli/zikon.js` and returns the structured JSON emitted by the CLI,
+ * including multi-size `svg_files` when requested.
  */
 
 const fs = require("node:fs");
@@ -26,10 +26,19 @@ const SKILL_MD = path.resolve(__dirname, "SKILL.md");
  * @param {string} [params.model]      - Diffusion model ID (default: "z-image-turbo").
  * @param {string} [params.style]      - Style hint appended to the prompt.
  * @param {string} [params.output_dir] - Directory for generated files.
- * @returns {{ prompt: string, model: string, seed: number, png_path: string, svg_path: string, svg_inline: string }}
+ * @param {string} [params.size]       - Comma-separated SVG sizes (e.g. "512,24,18").
+ * @returns {{
+ *   prompt: string,
+ *   model: string,
+ *   seed: number|null,
+ *   png_path: string,
+ *   svg_path: string|null,
+ *   svg_inline: string|null,
+ *   svg_files: Array<{ size: number, svg_path: string, svg_inline: string }>
+ * }}
  */
 function run(params = {}) {
-  const { prompt, model, style, output_dir } = params;
+  const { prompt, model, style, output_dir, size } = params;
 
   if (!prompt) throw new Error("run(params): 'prompt' is required");
 
@@ -37,6 +46,7 @@ function run(params = {}) {
   if (model)      args.push("--model", model);
   if (style)      args.push("--style", style);
   if (output_dir) args.push("--output-dir", output_dir);
+  if (size)       args.push("--size", size);
 
   // Resolve invocation: prefer the installed `zikon` shim created by `zikon install`,
   // fall back to the local repo CLI (one level up from zikon-skills/).
@@ -101,6 +111,13 @@ const skill = {
       type: "string",
       description:
         "Directory where the generated PNG and SVG files will be saved. Created automatically if it does not exist.",
+      required: false,
+    },
+    {
+      name: "size",
+      type: "string",
+      description:
+        'Optional comma-separated SVG sizes (e.g. "512,24,18"). For multiple sizes, `svg_files` contains one entry per size.',
       required: false,
     },
   ],
