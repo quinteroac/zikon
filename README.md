@@ -224,6 +224,32 @@ node --test tests/test_zikon.js   # from project root
 
 See [ROADMAP.md](./ROADMAP.md) for full detail.
 
+## Skills
+
+Zikon ships as an installable skill for Claude Code and compatible agents.
+
+### Install the skill
+
+```bash
+npx skills add zikon
+```
+
+### Invoke the skill
+
+Minimal invocation:
+
+```
+/zikon "rocket icon"
+```
+
+With optional parameters:
+
+```
+/zikon "rocket icon" --model sdxl --style flat --output-dir ./assets/icons
+```
+
+The skill wraps the CLI and returns the structured JSON output directly into the agent's context. See `.agents/skills/zikon/SKILL.md` for the full parameter reference and output contract.
+
 ## Agent usage
 
 Once the skill is installed, any compatible agent can invoke:

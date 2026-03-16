@@ -1289,3 +1289,62 @@ test("IT-000005/US-003-AC05: node --check syntax validation passes for zikon.js"
   });
   assert.equal(result.status, 0, `Syntax error in zikon.js:\n${result.stderr}`);
 });
+
+// ---------------------------------------------------------------------------
+// IT-000005 / US-004 — Installation and usage documentation
+// ---------------------------------------------------------------------------
+
+const ROOT = path.resolve(__dirname, "..");
+
+// AC01: README.md contains a "Skills" section with npx skills add zikon and /zikon syntax
+test("IT-000005/US-004-AC01: README.md has a Skills section with npx skills add zikon", () => {
+  const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
+  assert.ok(readme.includes("## Skills"), "README.md must contain a ## Skills section");
+  assert.ok(
+    readme.includes("npx skills add zikon"),
+    "README.md Skills section must document 'npx skills add zikon'"
+  );
+  assert.ok(
+    readme.includes("/zikon"),
+    "README.md Skills section must document the /zikon invocation syntax"
+  );
+});
+
+// AC02: AGENTS.md references .agents/skills/zikon/SKILL.md and invocation pattern
+test("IT-000005/US-004-AC02: AGENTS.md references skill file location and invocation pattern", () => {
+  const agents = fs.readFileSync(path.join(ROOT, "AGENTS.md"), "utf8");
+  assert.ok(
+    agents.includes(".agents/skills/zikon/SKILL.md"),
+    "AGENTS.md must reference .agents/skills/zikon/SKILL.md"
+  );
+  assert.ok(
+    agents.includes("/zikon"),
+    "AGENTS.md must document the /zikon invocation pattern"
+  );
+});
+
+// AC03: .agents/PROJECT_CONTEXT.md lists skill under Implemented Capabilities for iteration 000005
+test("IT-000005/US-004-AC03: PROJECT_CONTEXT.md lists skill under Iteration 000005", () => {
+  const ctx = fs.readFileSync(path.join(ROOT, ".agents", "PROJECT_CONTEXT.md"), "utf8");
+  assert.ok(
+    ctx.includes("### Iteration 000005"),
+    ".agents/PROJECT_CONTEXT.md must contain an ### Iteration 000005 section"
+  );
+  // The skill capability must appear after the iteration heading
+  const it5idx = ctx.indexOf("### Iteration 000005");
+  const after = ctx.slice(it5idx);
+  assert.ok(
+    after.includes("skill") || after.includes("SKILL"),
+    "Iteration 000005 section must mention the skill capability"
+  );
+});
+
+// AC04: typecheck / lint passes (node --check on zikon.js; skill index is also JS)
+test("IT-000005/US-004-AC04: node --check passes for skill index.js", () => {
+  const skillIndex = path.resolve(ROOT, ".agents", "skills", "zikon", "index.js");
+  const result = spawnSync("node", ["--check", skillIndex], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  assert.equal(result.status, 0, `Syntax error in skill index.js:\n${result.stderr}`);
+});
