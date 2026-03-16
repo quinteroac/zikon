@@ -73,3 +73,6 @@ Thumbs.db
 # Agents particular vendor local files
 # -----------------------------
 .claude
+.agents/skills/
+
+
