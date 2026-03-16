@@ -76,3 +76,5 @@ Thumbs.db
 .agents/skills/
 
 
+skills-lock.json
+.agents/flow/it_000001_progress.example.json
