@@ -1568,3 +1568,46 @@ test("IT-000006/US-002-AC04: stdout contains only JSON while progress logs are e
     fs.rmSync(tmpDir, { recursive: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Iteration 000006 - US-003: SVGO as a Node dependency
+// ---------------------------------------------------------------------------
+
+test("IT-000006/US-003-AC01: cli/package.json declares svgo in dependencies", () => {
+  const packageJsonPath = path.resolve(__dirname, "..", "cli", "package.json");
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  assert.ok(packageJson.dependencies, "cli/package.json must include dependencies");
+  assert.ok(
+    Object.prototype.hasOwnProperty.call(packageJson.dependencies, "svgo"),
+    "cli/package.json dependencies must include svgo"
+  );
+});
+
+test("IT-000006/US-003-AC02: npm install in cli/ completes successfully", () => {
+  const cliDir = path.resolve(__dirname, "..", "cli");
+  const result = spawnSync("npm", ["install"], {
+    cwd: cliDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  assert.equal(result.status, 0, `npm install failed in cli/: ${result.stderr}`);
+});
+
+test("IT-000006/US-003-AC03: zikon.js invokes SVGO programmatically (no svgo shell command)", () => {
+  const zikonSource = fs.readFileSync(ZIKON_JS, "utf8");
+  assert.match(
+    zikonSource,
+    /require\(["']svgo["']\)/,
+    "zikon.js must import svgo as a Node module"
+  );
+  assert.match(
+    zikonSource,
+    /optimize_svg\(/,
+    "zikon.js must call SVGO optimize programmatically"
+  );
+  assert.doesNotMatch(
+    zikonSource,
+    /\bspawn(?:Sync)?\(\s*["']svgo["']/,
+    "zikon.js must not invoke svgo through a shell subprocess"
+  );
+});
