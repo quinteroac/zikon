@@ -68,3 +68,8 @@ scripts/generate/output*.json
 .DS_Store
 Thumbs.db
 .vscode-test/
+
+# -----------------------------
+# Agents particular vendor local files
+# -----------------------------
+.claude

@@ -39,7 +39,7 @@ Download a release archive and run the binary installer:
 
 ```bash
 # Download and extract the release (replace <version> with the release tag)
-curl -L https://github.com/<your-org>/logo-creator/releases/download/<version>/zikon-linux-x64.tar.gz | tar -xz
+curl -L https://github.com/quinteroac/zikon/download/<version>/zikon-linux-x64.tar.gz | tar -xz
 cd zikon-linux-x64
 
 # Make the binary executable and install
@@ -58,8 +58,8 @@ Custom installation path:
 ### Linux / macOS — from source
 
 ```bash
-git clone https://github.com/<your-org>/logo-creator.git
-cd logo-creator
+git clone https://github.com/quinteroac/zikon.git
+cd zikon
 node cli/zikon.js install
 ~/.zikon/bin/zikon "minimalist rocket icon" --model z-image-turbo --output-dir ./assets
 ```
@@ -75,7 +75,7 @@ node cli/zikon.js install --installation-path /opt/zikon
 
 ```powershell
 # Download and extract the release
-Invoke-WebRequest -Uri "https://github.com/<your-org>/logo-creator/releases/download/<version>/zikon-windows-x64.zip" -OutFile zikon.zip
+Invoke-WebRequest -Uri "https://github.com/quinteroac/zikon/releases/download/<version>/zikon-windows-x64.zip" -OutFile zikon.zip
 Expand-Archive zikon.zip -DestinationPath zikon-windows-x64
 cd zikon-windows-x64
 
@@ -94,8 +94,8 @@ Custom installation path:
 ### Windows (PowerShell) — from source
 
 ```powershell
-git clone https://github.com/<your-org>/logo-creator.git
-cd logo-creator
+git clone https://github.com/quinteroac/zikon.git
+cd zikon
 node .\cli\zikon.js install
 & "$env:USERPROFILE\.zikon\bin\zikon.cmd" "minimalist rocket icon" --model z-image-turbo --output-dir .\assets
 ```
